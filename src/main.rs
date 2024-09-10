@@ -135,6 +135,13 @@ fn main() -> ! {
     let screen = GameboyLineBufferDisplay::new();
     let mut gameboy = GameBoy::create(screen, cart, boot_rom);
 
+    // let SCREEN_WIDTH: usize =
+    //     num_traits::Float::floor(<DisplaySize240x320 as DisplaySize>::WIDTH as f32 / 1.0f32)
+    //         as usize;
+    // let SCREEN_HEIGHT: usize =
+    //     num_traits::Float::floor(<DisplaySize240x320 as DisplaySize>::HEIGHT as f32 / 1.0f32)
+    //         as usize;
+
     const SCREEN_WIDTH: usize =
         const_math::floorf(<DisplaySize240x320 as DisplaySize>::WIDTH as f32 / 1.0f32) as usize;
     const SCREEN_HEIGHT: usize =
@@ -151,21 +158,18 @@ fn main() -> ! {
             .as_mut_slice();
 
     let dma = pac.DMA.split(&mut pac.RESETS);
-    let mut streamer = stream_display::Streamer::new(dma.ch0, dm_spare, spare);
+    let mut streamer = stream_display::Streamer::new(dma.ch0, dm_spare, spare, SCREEN_WIDTH);
+    let mut scaler: scaler::ScreenScaler<144, 160> =
+        scaler::ScreenScaler::new(SCREEN_HEIGHT as u16, SCREEN_WIDTH as u16);
 
     loop {
-        let display_iter = GameVideoIter::new(&mut gameboy);
-        let mut scaler: scaler::ScreenScaler<
-            144,
-            160,
-            { SCREEN_WIDTH },
-            { SCREEN_HEIGHT },
-            GameVideoIter,
-        > = scaler::ScreenScaler::new(display_iter);
+        let mut dis = scaler.clone();
         display = display
             .async_transfer_mode(0, 0, SCREEN_HEIGHT as u16, SCREEN_WIDTH as u16, |iface| {
                 iface.transfer_16bit_mode(|sm| {
-                    streamer.stream::<SCREEN_WIDTH, _, _>(sm, &mut scaler)
+                    let display_iter = GameVideoIter::new(&mut gameboy);
+                    let mut foo = dis.get_iter(display_iter);
+                    streamer.stream::<_, _>(sm, &mut foo)
                 })
             })
             .unwrap();

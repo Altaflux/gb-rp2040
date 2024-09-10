@@ -1,26 +1,31 @@
-//New Scaler
-
-pub struct ScreenHandler<'a, const OUT_WIDTH: usize, T: LineTransfer, I: Iterator<Item = u16>> {
+pub struct ScreenHandler<'a, T: LineTransfer, I: Iterator<Item = u16>> {
     iterator: &'a mut I,
     scaled_scan_line_buffer: &'static mut [u16],
     line_transfer: T,
+    out_width: usize,
 }
 
-impl<'a, const OUT_WIDTH: usize, I, T> ScreenHandler<'a, OUT_WIDTH, T, I>
+impl<'a, I, T> ScreenHandler<'a, T, I>
 where
     I: Iterator<Item = u16>,
     T: LineTransfer,
 {
-    pub fn new(iterator: &'a mut I, line_transfer: T, buffer: &'static mut [u16]) -> Self {
+    pub fn new(
+        iterator: &'a mut I,
+        line_transfer: T,
+        buffer: &'static mut [u16],
+        out_width: usize,
+    ) -> Self {
         Self {
             iterator: iterator,
             scaled_scan_line_buffer: buffer,
             line_transfer: line_transfer,
+            out_width,
         }
     }
 }
 
-impl<'a, I, T, const OUT_WIDTH: usize> ScreenHandler<'a, OUT_WIDTH, T, I>
+impl<'a, I, T> ScreenHandler<'a, T, I>
 where
     I: Iterator<Item = u16>,
     T: LineTransfer,
@@ -33,7 +38,7 @@ where
         for pixel in self.iterator {
             buffer[width_position] = pixel;
             width_position += 1;
-            if width_position == OUT_WIDTH {
+            if width_position == self.out_width {
                 buffer = transfer.send_scanline(buffer);
                 width_position = 0;
             }
