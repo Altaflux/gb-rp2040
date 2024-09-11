@@ -152,20 +152,17 @@ fn main() -> ! {
 
     let dma = pac.DMA.split(&mut pac.RESETS);
     let mut streamer = stream_display::Streamer::new(dma.ch0, dm_spare, spare);
+    let scaler: scaler::ScreenScaler<144, 160, { SCREEN_WIDTH }, { SCREEN_HEIGHT }> =
+        scaler::ScreenScaler::new(SCREEN_HEIGHT as u16, SCREEN_WIDTH as u16);
 
     loop {
-        let display_iter = GameVideoIter::new(&mut gameboy);
-        let mut scaler: scaler::ScreenScaler<
-            144,
-            160,
-            { SCREEN_WIDTH },
-            { SCREEN_HEIGHT },
-            GameVideoIter,
-        > = scaler::ScreenScaler::new(display_iter);
+        let mut dis = scaler.clone();
         display = display
             .async_transfer_mode(0, 0, SCREEN_HEIGHT as u16, SCREEN_WIDTH as u16, |iface| {
                 iface.transfer_16bit_mode(|sm| {
-                    streamer.stream::<SCREEN_WIDTH, _, _>(sm, &mut scaler)
+                    let display_iter = GameVideoIter::new(&mut gameboy);
+                    let mut foo = dis.get_iter(display_iter);
+                    streamer.stream::<SCREEN_WIDTH, _, _>(sm, &mut foo)
                 })
             })
             .unwrap();
