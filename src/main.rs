@@ -3,7 +3,6 @@
 //! This will blink an LED attached to GP25, which is the pin the Pico uses for the on-board LED.
 #![no_std]
 #![no_main]
-#![feature(const_float_bits_conv)]
 use alloc::vec::Vec;
 use defmt::*;
 use defmt_rtt as _;
@@ -26,7 +25,6 @@ use embedded_alloc::Heap;
 
 use gb_core::{gameboy::GameBoy, hardware::Screen};
 mod array_scaler;
-mod const_math;
 mod dma_transfer;
 mod pio_interface;
 mod rp_hal;
