@@ -1,4 +1,4 @@
-use core::cell::{RefCell, RefMut};
+use core::cell::{Ref, RefCell, RefMut};
 
 //New Scaler
 use alloc::{rc::Rc, vec::Vec};
@@ -12,8 +12,8 @@ pub struct ScreenScaler<
     const OUT_WIDTH: usize,
 > {
     scaled_scan_line_buffer: Rc<RefCell<Vec<u16>>>,
-    // width_ceil_calcs: Rc<RefCell<Vec<u16>>>,
-    // height_ceil_calcs: Rc<RefCell<Vec<u16>>>,
+    width_ceil_calcs: Rc<RefCell<Vec<u16>>>,
+    height_ceil_calcs: Rc<RefCell<Vec<u16>>>,
     out_width_size: u16,
 }
 
@@ -25,15 +25,15 @@ impl<
     > ScreenScaler<IN_HEIGHT, IN_WIDTH, OUT_HEIGHT, OUT_WIDTH>
 {
     pub fn new(out_width: u16, out_height: u16) -> Self {
-        // let width_ceil_calcs: Vec<u16> =
-        //     gen_ceil_array2(out_width as f32 / IN_WIDTH as f32, out_width as usize);
-        // let height_ceil_calcs: Vec<u16> =
-        //     gen_ceil_array2(out_height as f32 / IN_HEIGHT as f32, out_height as usize);
+        let width_ceil_calcs: Vec<u16> =
+            gen_ceil_array2(out_width as f32 / IN_WIDTH as f32, out_width as usize);
+        let height_ceil_calcs: Vec<u16> =
+            gen_ceil_array2(out_height as f32 / IN_HEIGHT as f32, out_height as usize);
 
         Self {
             scaled_scan_line_buffer: Rc::new(RefCell::new(alloc::vec![0; out_width as usize])),
-            // width_ceil_calcs: Rc::new(RefCell::new(width_ceil_calcs)),
-            // height_ceil_calcs: Rc::new(RefCell::new(height_ceil_calcs)),
+            width_ceil_calcs: Rc::new(RefCell::new(width_ceil_calcs)),
+            height_ceil_calcs: Rc::new(RefCell::new(height_ceil_calcs)),
             out_width_size: out_width as u16,
         }
     }
@@ -50,8 +50,8 @@ impl<
                 iterator,
                 self.scaled_scan_line_buffer.borrow_mut(),
                 self.out_width_size,
-                // self.width_ceil_calcs.borrow(),
-                // self.height_ceil_calcs.borrow(),
+                self.width_ceil_calcs.borrow(),
+                self.height_ceil_calcs.borrow(),
             );
         return ite;
     }
@@ -67,8 +67,8 @@ impl<
     fn clone(&self) -> Self {
         Self {
             scaled_scan_line_buffer: self.scaled_scan_line_buffer.clone(),
-            // width_ceil_calcs: self.width_ceil_calcs.clone(),
-            // height_ceil_calcs: self.height_ceil_calcs.clone(),
+            width_ceil_calcs: self.width_ceil_calcs.clone(),
+            height_ceil_calcs: self.height_ceil_calcs.clone(),
             out_width_size: self.out_width_size.clone(),
         }
     }
@@ -87,6 +87,8 @@ pub struct ScalerIter<
     output_current_scan_line: u16,
     scaled_scan_line_buffer: RefMut<'a, Vec<I::Item>>,
     scaled_scan_line_buffer2: Vec<u16>,
+    width_ceil_calcs: Ref<'a, Vec<I::Item>>,
+    height_ceil_calcs: Ref<'a, Vec<I::Item>>,
     scaled_line_buffer_repeat: u16,
     current_scaled_line_index: u16,
     out_width_size: u16,
@@ -113,8 +115,8 @@ where
 
         scaled_scan_line_buffer: RefMut<'a, Vec<I::Item>>,
         out_width: u16,
-        // width_ceil_calcs: Ref<'a, Vec<I::Item>>,
-        // height_ceil_calcs: Ref<'a, Vec<I::Item>>,
+        width_ceil_calcs: Ref<'a, Vec<I::Item>>,
+        height_ceil_calcs: Ref<'a, Vec<I::Item>>,
     ) -> Self {
         Self {
             iterator: iterator,
@@ -124,8 +126,8 @@ where
             scaled_scan_line_buffer2: alloc::vec![0; OUT_WIDTH],
             scaled_line_buffer_repeat: 0,
             current_scaled_line_index: 0,
-            // width_ceil_calcs,
-            // height_ceil_calcs,
+            width_ceil_calcs,
+            height_ceil_calcs,
             out_width_size: out_width as u16,
         }
     }
@@ -221,6 +223,20 @@ fn gen_ceil_array2(ratio: f32, size: usize) -> Vec<u16> {
     //     res.push(0);
     //     i += 1;
     // }
+
+    res
+}
+
+fn gen_ceil_array3(ratio: u16, size: usize) -> Vec<u16> {
+    let mut res = Vec::with_capacity(size);
+
+    let mut i = 0;
+
+    while i < size as u16 {
+        res.push((ratio * i) as u16);
+        res.push(0);
+        i += 1;
+    }
 
     res
 }
