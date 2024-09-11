@@ -169,7 +169,7 @@ fn main() -> ! {
                 iface.transfer_16bit_mode(|sm| {
                     let display_iter = GameVideoIter::new(&mut gameboy);
                     let mut foo = dis.get_iter(display_iter);
-                    streamer.stream::<_, _>(sm, &mut foo)
+                    streamer.stream::<SCREEN_WIDTH, _, _>(sm, &mut foo)
                 })
             })
             .unwrap();

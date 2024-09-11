@@ -31,7 +31,7 @@ where
         }
     }
 
-    pub fn stream<I, TO>(&mut self, tx: TO, iterator: &mut I) -> TO
+    pub fn stream<const SCREEN_WIDTH: usize, I, TO>(&mut self, tx: TO, iterator: &mut I) -> TO
     where
         TO: WriteTarget<TransmittedWord = u16>,
         I: Iterator<Item = u16>,
@@ -41,7 +41,7 @@ where
         let main_buffer = core::mem::replace(&mut self.main_buffer, None).unwrap();
         let stream = dma_transfer::DmaTransfer::new(channel, tx, main_buffer);
 
-        let sh: ScreenHandler<_, _> =
+        let sh: ScreenHandler<SCREEN_WIDTH, _, _> =
             ScreenHandler::new(iterator, stream, spare_buffer, self.out_width);
         let (stream, spare_buffer) = sh.compute_line();
 

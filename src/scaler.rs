@@ -163,7 +163,7 @@ where
                 let pixel = self.scaled_scan_line_buffer[self.current_scaled_line_index as usize];
 
                 let next_current_scaled_line_index = self.current_scaled_line_index + 1;
-                if next_current_scaled_line_index < self.out_width_size {
+                if next_current_scaled_line_index < OUT_WIDTH as u16 {
                     self.current_scaled_line_index = next_current_scaled_line_index;
                 } else {
                     self.scaled_line_buffer_repeat -= 1;
