@@ -159,7 +159,7 @@ fn main() -> ! {
 
     let dma = pac.DMA.split(&mut pac.RESETS);
     let mut streamer = stream_display::Streamer::new(dma.ch0, dm_spare, spare, SCREEN_WIDTH);
-    let mut scaler: scaler::ScreenScaler<144, 160> =
+    let mut scaler: scaler::ScreenScaler<144, 160, { SCREEN_WIDTH }, { SCREEN_HEIGHT }> =
         scaler::ScreenScaler::new(SCREEN_HEIGHT as u16, SCREEN_WIDTH as u16);
 
     loop {
