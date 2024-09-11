@@ -1,9 +1,9 @@
 use core::cell::{Ref, RefCell, RefMut};
 
 //New Scaler
-use alloc::{rc::Rc, vec::Vec};
+use alloc::{boxed::Box, rc::Rc, vec::Vec};
 
-use crate::const_math::ceilf;
+use crate::const_math::{ceilf, floorf};
 
 pub struct ScreenScaler<
     const IN_HEIGHT: usize,
@@ -11,9 +11,9 @@ pub struct ScreenScaler<
     const OUT_HEIGHT: usize,
     const OUT_WIDTH: usize,
 > {
-    scaled_scan_line_buffer: Rc<RefCell<Vec<u16>>>,
-    width_ceil_calcs: Rc<RefCell<Vec<u16>>>,
-    height_ceil_calcs: Rc<RefCell<Vec<u16>>>,
+    scaled_scan_line_buffer: Rc<Box<[u16; OUT_WIDTH]>>,
+    width_ceil_calcs: Rc<Box<[u16; OUT_WIDTH]>>,
+    height_ceil_calcs: Rc<Box<[u16; OUT_HEIGHT]>>,
     out_width_size: u16,
 }
 
@@ -25,15 +25,26 @@ impl<
     > ScreenScaler<IN_HEIGHT, IN_WIDTH, OUT_HEIGHT, OUT_WIDTH>
 {
     pub fn new(out_width: u16, out_height: u16) -> Self {
-        let width_ceil_calcs: Vec<u16> =
-            gen_ceil_array2(out_width as f32 / IN_WIDTH as f32, out_width as usize);
-        let height_ceil_calcs: Vec<u16> =
-            gen_ceil_array2(out_height as f32 / IN_HEIGHT as f32, out_height as usize);
+        let calc_out_width_frac = out_width as f32 / IN_WIDTH as f32;
+        let calc_out_height_frac = out_height as f32 / IN_HEIGHT as f32;
+
+        let mut width_ceil_calcs_1 = Box::new([0u16; OUT_WIDTH]);
+        let mut height_ceil_calcs_1 = Box::new([0u16; OUT_HEIGHT]);
+        gen_ceil_array_box_mut(
+            calc_out_width_frac,
+            out_width as usize,
+            &mut *width_ceil_calcs_1,
+        );
+        gen_ceil_array_box_mut(
+            calc_out_height_frac,
+            out_height as usize,
+            &mut *height_ceil_calcs_1,
+        );
 
         Self {
-            scaled_scan_line_buffer: Rc::new(RefCell::new(alloc::vec![0; out_width as usize])),
-            width_ceil_calcs: Rc::new(RefCell::new(width_ceil_calcs)),
-            height_ceil_calcs: Rc::new(RefCell::new(height_ceil_calcs)),
+            scaled_scan_line_buffer: Rc::new(Box::new([0u16; OUT_WIDTH])),
+            width_ceil_calcs: Rc::new((width_ceil_calcs_1)),
+            height_ceil_calcs: Rc::new((height_ceil_calcs_1)),
             out_width_size: out_width as u16,
         }
     }
@@ -41,18 +52,17 @@ impl<
     pub fn get_iter<I>(
         &mut self,
         iterator: I,
-    ) -> ScalerIter<'_, IN_HEIGHT, IN_WIDTH, OUT_HEIGHT, OUT_WIDTH, I>
+    ) -> ScalerIter<IN_HEIGHT, IN_WIDTH, OUT_HEIGHT, OUT_WIDTH, I>
     where
         I: Iterator<Item = u16>,
     {
-        let ite: ScalerIter<'_, IN_HEIGHT, IN_WIDTH, OUT_HEIGHT, OUT_WIDTH, I> =
-            ScalerIter::new_iter(
-                iterator,
-                self.scaled_scan_line_buffer.borrow_mut(),
-                self.out_width_size,
-                self.width_ceil_calcs.borrow(),
-                self.height_ceil_calcs.borrow(),
-            );
+        let ite: ScalerIter<IN_HEIGHT, IN_WIDTH, OUT_HEIGHT, OUT_WIDTH, I> = ScalerIter::new_iter(
+            iterator,
+            Rc::clone(&self.scaled_scan_line_buffer),
+            self.out_width_size,
+            Rc::clone(&self.width_ceil_calcs),
+            Rc::clone(&self.height_ceil_calcs),
+        );
         return ite;
     }
 }
@@ -75,7 +85,6 @@ impl<
 }
 
 pub struct ScalerIter<
-    'a,
     const IN_HEIGHT: usize,
     const IN_WIDTH: usize,
     const OUT_HEIGHT: usize,
@@ -85,23 +94,23 @@ pub struct ScalerIter<
     iterator: I,
     input_current_scan_line: u16,
     output_current_scan_line: u16,
-    scaled_scan_line_buffer: RefMut<'a, Vec<I::Item>>,
-    scaled_scan_line_buffer2: Vec<u16>,
-    width_ceil_calcs: Ref<'a, Vec<I::Item>>,
-    height_ceil_calcs: Ref<'a, Vec<I::Item>>,
+    scaled_scan_line_buffer: Rc<Box<[I::Item; OUT_WIDTH]>>,
+    scaled_scan_line_buffer2: Box<[u16; OUT_WIDTH]>,
+    scaled_scan_line_buffer3: Vec<u16>,
+    width_ceil_calcs: Rc<Box<[I::Item; OUT_WIDTH]>>,
+    height_ceil_calcs: Rc<Box<[I::Item; OUT_HEIGHT]>>,
     scaled_line_buffer_repeat: u16,
     current_scaled_line_index: u16,
     out_width_size: u16,
 }
 
 impl<
-        'a,
         const IN_HEIGHT: usize,
         const IN_WIDTH: usize,
         const OUT_HEIGHT: usize,
         const OUT_WIDTH: usize,
         I,
-    > ScalerIter<'a, IN_HEIGHT, IN_WIDTH, OUT_HEIGHT, OUT_WIDTH, I>
+    > ScalerIter<IN_HEIGHT, IN_WIDTH, OUT_HEIGHT, OUT_WIDTH, I>
 where
     I: Iterator<Item = u16>,
 {
@@ -113,17 +122,18 @@ where
     pub fn new_iter(
         iterator: I,
 
-        scaled_scan_line_buffer: RefMut<'a, Vec<I::Item>>,
+        scaled_scan_line_buffer: Rc<Box<[I::Item; OUT_WIDTH]>>,
         out_width: u16,
-        width_ceil_calcs: Ref<'a, Vec<I::Item>>,
-        height_ceil_calcs: Ref<'a, Vec<I::Item>>,
+        width_ceil_calcs: Rc<Box<[I::Item; OUT_WIDTH]>>,
+        height_ceil_calcs: Rc<Box<[I::Item; OUT_HEIGHT]>>,
     ) -> Self {
         Self {
             iterator: iterator,
             input_current_scan_line: 0,
             output_current_scan_line: 0,
             scaled_scan_line_buffer: scaled_scan_line_buffer,
-            scaled_scan_line_buffer2: alloc::vec![0; OUT_WIDTH],
+            scaled_scan_line_buffer2: Box::new([0u16; OUT_WIDTH]),
+            scaled_scan_line_buffer3: alloc::vec![0; OUT_WIDTH],
             scaled_line_buffer_repeat: 0,
             current_scaled_line_index: 0,
             width_ceil_calcs,
@@ -134,13 +144,12 @@ where
 }
 
 impl<
-        'a,
         I,
         const IN_HEIGHT: usize,
         const IN_WIDTH: usize,
         const OUT_HEIGHT: usize,
         const OUT_WIDTH: usize,
-    > Iterator for ScalerIter<'a, IN_HEIGHT, IN_WIDTH, OUT_HEIGHT, OUT_WIDTH, I>
+    > Iterator for ScalerIter<IN_HEIGHT, IN_WIDTH, OUT_HEIGHT, OUT_WIDTH, I>
 where
     I: Iterator<Item = u16>,
 {
@@ -170,8 +179,8 @@ where
                     return None;
                 }
 
-                //let last_pixel = self.width_ceil_calcs[count] as u16;
-                let last_pixel = Self::WIDTH_CEIL_CALCS[count] as u16;
+                let last_pixel = self.width_ceil_calcs[count] as u16;
+                //let last_pixel = Self::WIDTH_CEIL_CALCS[count] as u16;
                 self.scaled_scan_line_buffer2[(next_x_position as usize)..last_pixel as usize]
                     .fill(pixel.unwrap());
 
@@ -179,10 +188,10 @@ where
             }
 
             //Calculate y position of the next scan line
-            // let next_scan_line_start =
-            //     self.height_ceil_calcs[(self.input_current_scan_line + 1) as usize] as u16;
             let next_scan_line_start =
-                Self::HEIGHT_CEIL_CALCS[(self.input_current_scan_line + 1) as usize] as u16;
+                self.height_ceil_calcs[(self.input_current_scan_line + 1) as usize] as u16;
+            // let next_scan_line_start =
+            //     Self::HEIGHT_CEIL_CALCS[(self.input_current_scan_line + 1) as usize] as u16;
             //How many scan lines are in bewteen the previous last scan line and the next, this is the amount of scan line repetitions needed for Y scaling
 
             self.scaled_line_buffer_repeat =
@@ -218,13 +227,20 @@ fn gen_ceil_array2(ratio: f32, size: usize) -> Vec<u16> {
 
     let mut i = 0;
 
-    // while i < size as i32 {
-    //     // res.push(ceilf(ratio * i as f32) as u16);
-    //     res.push(0);
-    //     i += 1;
-    // }
+    while i < size as i32 {
+        res.push(ceilf(ratio * i as f32) as u16);
+        i += 1;
+    }
 
     res
+}
+
+fn gen_ceil_array_box_mut(ratio: f32, size: usize, array: &mut [u16]) {
+    let mut i = 0;
+    while i < size as i32 {
+        array[i as usize] = ceilf(ratio * i as f32) as u16;
+        i += 1;
+    }
 }
 
 fn gen_ceil_array3(ratio: u16, size: usize) -> Vec<u16> {
@@ -233,8 +249,8 @@ fn gen_ceil_array3(ratio: u16, size: usize) -> Vec<u16> {
     let mut i = 0;
 
     while i < size as u16 {
-        res.push((ratio * i) as u16);
-        res.push(0);
+        res.push(((ratio * i) as u16));
+        //res.push(0);
         i += 1;
     }
 

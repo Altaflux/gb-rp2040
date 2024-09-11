@@ -136,9 +136,9 @@ fn main() -> ! {
     let mut gameboy = GameBoy::create(screen, cart, boot_rom);
 
     const SCREEN_WIDTH: usize =
-        const_math::floorf(<DisplaySize240x320 as DisplaySize>::WIDTH as f32 / 1.0f32) as usize;
+        (<DisplaySize240x320 as DisplaySize>::WIDTH as f32 / 1.0f32) as usize;
     const SCREEN_HEIGHT: usize =
-        const_math::floorf(<DisplaySize240x320 as DisplaySize>::HEIGHT as f32 / 1.0f32) as usize;
+        (<DisplaySize240x320 as DisplaySize>::HEIGHT as f32 / 1.0f32) as usize;
 
     let spare: &'static mut [u16] =
         cortex_m::singleton!(: Vec<u16>  = alloc::vec![0; SCREEN_WIDTH ])
