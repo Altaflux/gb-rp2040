@@ -1,3 +1,4 @@
+use crate::array_scaler::LineTransfer;
 use crate::rp_hal::hal;
 
 use hal::dma::{
@@ -5,33 +6,35 @@ use hal::dma::{
     ReadTarget, SingleChannel, WriteTarget,
 };
 
-use crate::array_scaler::LineTransfer;
+use embedded_dma::Word;
 
 enum DmaState<
+    T: 'static + Word,
     CH: SingleChannel,
-    FROM: ReadTarget<ReceivedWord = u16>,
-    TO: WriteTarget<TransmittedWord = u16>,
+    FROM: ReadTarget<ReceivedWord = T>,
+    TO: WriteTarget<TransmittedWord = T>,
 > {
     IDLE(CH, FROM, TO),
     RUNNING(Transfer<CH, FROM, TO>),
 }
 
-pub struct DmaTransfer<CH: SingleChannel, TO: WriteTarget<TransmittedWord = u16>> {
-    dma: Option<DmaState<CH, &'static mut [u16], TO>>,
+pub struct DmaTransfer<T: 'static + Word, CH: SingleChannel, TO: WriteTarget<TransmittedWord = T>> {
+    dma: Option<DmaState<T, CH, &'static mut [T], TO>>,
 }
 
-impl<CH, TO> DmaTransfer<CH, TO>
+impl<T, CH, TO> DmaTransfer<T, CH, TO>
 where
+    T: 'static + Word,
     CH: SingleChannel,
-    TO: WriteTarget<TransmittedWord = u16>,
+    TO: WriteTarget<TransmittedWord = T>,
 {
-    pub fn new(dma_channel: CH, tx: TO, buffer: &'static mut [u16]) -> Self {
+    pub fn new(dma_channel: CH, tx: TO, buffer: &'static mut [T]) -> Self {
         Self {
             dma: (Some(DmaState::IDLE(dma_channel, buffer, tx))),
         }
     }
 
-    pub fn do_tranfer(&mut self, buffer: &'static mut [u16]) -> &'static mut [u16] {
+    pub fn do_tranfer(&mut self, buffer: &'static mut [T]) -> &'static mut [T] {
         let dma_state = core::mem::replace(&mut self.dma, None).unwrap();
 
         let (ch, old_buffer, tx) = match dma_state {
@@ -45,7 +48,7 @@ where
         old_buffer
     }
 
-    pub fn free(mut self) -> (CH, TO, &'static mut [u16]) {
+    pub fn free(mut self) -> (CH, TO, &'static mut [T]) {
         let foo = core::mem::replace(&mut self.dma, None).unwrap();
         let (ch, old_buffer, tx) = match foo {
             DmaState::IDLE(ch, buff, tx) => (ch, buff, tx),
@@ -55,12 +58,14 @@ where
     }
 }
 
-impl<CH, TO> LineTransfer for DmaTransfer<CH, TO>
+impl<T, CH, TO> LineTransfer for DmaTransfer<T, CH, TO>
 where
+    T: 'static + Word,
     CH: SingleChannel,
-    TO: WriteTarget<TransmittedWord = u16>,
+    TO: WriteTarget<TransmittedWord = T>,
 {
-    fn send_scanline(&mut self, line: &'static mut [u16]) -> &'static mut [u16] {
+    type Item = T;
+    fn send_scanline(&mut self, line: &'static mut [Self::Item]) -> &'static mut [Self::Item] {
         self.do_tranfer(line)
     }
 }

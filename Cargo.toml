@@ -32,6 +32,7 @@ embedded-alloc = "0.5.1"
 num-traits = { version = "0.2.19", default-features = false, features = [
     "libm",
 ] }
+embedded-dma = "0.2.0"
 ##
 
 [patch.crates-io]

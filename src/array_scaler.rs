@@ -1,17 +1,20 @@
 //New Scaler
 
-pub struct ScreenHandler<'a, T: LineTransfer, I: Iterator<Item = u16>> {
+pub struct ScreenHandler<'a, DT, T: LineTransfer<Item = DT>, I: Iterator<Item = DT>>
+where
+    DT: 'static,
+{
     iterator: &'a mut I,
-    scaled_scan_line_buffer: &'static mut [u16],
+    scaled_scan_line_buffer: &'static mut [DT],
     line_transfer: T,
 }
 
-impl<'a, I, T> ScreenHandler<'a, T, I>
+impl<'a, DT, I, T> ScreenHandler<'a, DT, T, I>
 where
-    I: Iterator<Item = u16>,
-    T: LineTransfer,
+    I: Iterator<Item = DT>,
+    T: LineTransfer<Item = DT>,
 {
-    pub fn new(iterator: &'a mut I, line_transfer: T, buffer: &'static mut [u16]) -> Self {
+    pub fn new(iterator: &'a mut I, line_transfer: T, buffer: &'static mut [DT]) -> Self {
         Self {
             iterator: iterator,
             scaled_scan_line_buffer: buffer,
@@ -20,12 +23,12 @@ where
     }
 }
 
-impl<'a, I, T> ScreenHandler<'a, T, I>
+impl<'a, DT, I, T> ScreenHandler<'a, DT, T, I>
 where
-    I: Iterator<Item = u16>,
-    T: LineTransfer,
+    I: Iterator<Item = DT>,
+    T: LineTransfer<Item = DT>,
 {
-    pub fn compute_line(self) -> (T, &'static mut [u16]) {
+    pub fn compute_line(self) -> (T, &'static mut [DT]) {
         let mut transfer = self.line_transfer;
         let mut buffer = self.scaled_scan_line_buffer;
 
@@ -44,5 +47,6 @@ where
 }
 
 pub trait LineTransfer {
-    fn send_scanline(&mut self, line: &'static mut [u16]) -> &'static mut [u16];
+    type Item;
+    fn send_scanline(&mut self, line: &'static mut [Self::Item]) -> &'static mut [Self::Item];
 }
