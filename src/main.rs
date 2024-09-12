@@ -40,7 +40,7 @@ static ALLOCATOR: Heap = Heap::empty();
 fn main() -> ! {
     {
         use core::mem::MaybeUninit;
-        const HEAP_SIZE: usize = 131000;
+        const HEAP_SIZE: usize = 230000;
         static mut HEAP: [MaybeUninit<u8>; HEAP_SIZE] = [MaybeUninit::uninit(); HEAP_SIZE];
         unsafe { ALLOCATOR.init(HEAP.as_ptr() as usize, HEAP_SIZE) }
     }
@@ -53,7 +53,6 @@ fn main() -> ! {
     pac.VREG_AND_CHIP_RESET
         .vreg()
         .write(|w| unsafe { w.vsel().bits(0b1101) });
-
     // External high-speed crystal on the pico board is 12Mhz
     let external_xtal_freq_hz = 12_000_000u32;
     let clocks = init_clocks_and_plls(
@@ -140,7 +139,7 @@ fn main() -> ! {
         (<DisplaySize240x320 as DisplaySize>::HEIGHT as f32 / 1.0f32) as usize;
 
     let spare: &'static mut [u16] =
-        cortex_m::singleton!(: Vec<u16>  = alloc::vec![0; SCREEN_WIDTH ])
+        cortex_m::singleton!(: Vec<u16>  = alloc::vec![0; SCREEN_WIDTH  ])
             .unwrap()
             .as_mut_slice();
 
@@ -160,7 +159,7 @@ fn main() -> ! {
             .async_transfer_mode(0, 0, SCREEN_HEIGHT as u16, SCREEN_WIDTH as u16, |iface| {
                 iface.transfer_16bit_mode(|sm| {
                     let display_iter = GameVideoIter::new(&mut gameboy);
-                    streamer.stream::<SCREEN_WIDTH, _, _>(sm, &mut dis.scale_iterator(display_iter))
+                    streamer.stream::<_, _>(sm, &mut dis.scale_iterator(display_iter))
                 })
             })
             .unwrap();
@@ -235,7 +234,6 @@ impl Screen for GameboyLineBufferDisplay {
         let encoded_color = ((color.red as u16 & 0b11111000) << 8)
             + ((color.green as u16 & 0b11111100) << 3)
             + (color.blue as u16 >> 3);
-
         self.line_buffer[x as usize] = encoded_color;
     }
     fn scanline_complete(&mut self, _y: u8, _skip: bool) {
