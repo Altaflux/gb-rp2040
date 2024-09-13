@@ -9,7 +9,7 @@ use hal::dma::{
 use embedded_dma::Word;
 
 enum DmaState<
-    T: 'static + Word,
+    T: Word,
     CH: SingleChannel,
     FROM: ReadTarget<ReceivedWord = T>,
     TO: WriteTarget<TransmittedWord = T>,
@@ -60,7 +60,7 @@ where
 
 impl<T, CH, TO> LineTransfer for DmaTransfer<T, CH, TO>
 where
-    T: 'static + Word,
+    T: Word,
     CH: SingleChannel,
     TO: WriteTarget<TransmittedWord = T>,
 {

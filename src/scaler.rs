@@ -1,4 +1,4 @@
-use alloc::{boxed::Box, rc::Rc, vec::Vec};
+use alloc::vec::Vec;
 
 pub struct ScreenScaler<
     const IN_HEIGHT: usize,
@@ -6,8 +6,8 @@ pub struct ScreenScaler<
     const OUT_HEIGHT: usize,
     const OUT_WIDTH: usize,
 > {
-    width_ceil_calcs: Rc<Box<[u16; OUT_WIDTH]>>,
-    height_ceil_calcs: Rc<Box<[u16; OUT_HEIGHT]>>,
+    width_ceil_calcs: Vec<u16>,
+    height_ceil_calcs: Vec<u16>,
 }
 
 impl<
@@ -21,44 +21,30 @@ impl<
         let calc_out_width_frac = OUT_WIDTH as f32 / IN_WIDTH as f32;
         let calc_out_height_frac = OUT_HEIGHT as f32 / IN_HEIGHT as f32;
 
-        let mut width_ceil_calcs_1 = Box::new([0u16; OUT_WIDTH]);
-        let mut height_ceil_calcs_1 = Box::new([0u16; OUT_HEIGHT]);
-        gen_ceil_array_box_mut(calc_out_width_frac, OUT_WIDTH, &mut *width_ceil_calcs_1);
-        gen_ceil_array_box_mut(calc_out_height_frac, OUT_HEIGHT, &mut *height_ceil_calcs_1);
+        let mut width_ceil_calcs_1 = alloc::vec![0u16; OUT_WIDTH];
+        let mut height_ceil_calcs_1 = alloc::vec![0u16; OUT_HEIGHT];
+        gen_ceil_array_box_mut(calc_out_width_frac, OUT_WIDTH, &mut width_ceil_calcs_1);
+        gen_ceil_array_box_mut(calc_out_height_frac, OUT_HEIGHT, &mut height_ceil_calcs_1);
 
         Self {
-            width_ceil_calcs: Rc::new(width_ceil_calcs_1),
-            height_ceil_calcs: Rc::new(height_ceil_calcs_1),
+            width_ceil_calcs: width_ceil_calcs_1,
+            height_ceil_calcs: height_ceil_calcs_1,
         }
     }
-    pub fn scale_iterator<I>(&mut self, iterator: I) -> impl Iterator<Item = u16>
+    pub fn scale_iterator<'a, I>(&'a self, iterator: I) -> impl Iterator<Item = u16> + 'a
     where
-        I: Iterator<Item = u16>,
+        I: Iterator<Item = u16> + 'a,
     {
-        return ScalerIterator::<IN_HEIGHT, IN_WIDTH, OUT_HEIGHT, OUT_WIDTH, I>::new(
+        return ScalerIterator::<'a, IN_HEIGHT, IN_WIDTH, OUT_HEIGHT, OUT_WIDTH, I>::new(
             iterator,
-            Rc::clone(&self.width_ceil_calcs),
-            Rc::clone(&self.height_ceil_calcs),
+            &self.width_ceil_calcs,
+            &self.height_ceil_calcs,
         );
     }
 }
 
-impl<
-        const IN_HEIGHT: usize,
-        const IN_WIDTH: usize,
-        const OUT_HEIGHT: usize,
-        const OUT_WIDTH: usize,
-    > Clone for ScreenScaler<IN_HEIGHT, IN_WIDTH, OUT_HEIGHT, OUT_WIDTH>
-{
-    fn clone(&self) -> Self {
-        Self {
-            width_ceil_calcs: self.width_ceil_calcs.clone(),
-            height_ceil_calcs: self.height_ceil_calcs.clone(),
-        }
-    }
-}
-
 struct ScalerIterator<
+    'a,
     const IN_HEIGHT: usize,
     const IN_WIDTH: usize,
     const OUT_HEIGHT: usize,
@@ -69,27 +55,24 @@ struct ScalerIterator<
     input_current_scan_line: u16,
     output_current_scan_line: u16,
     scaled_scan_line_buffer: Vec<I::Item>,
-    width_ceil_calcs: Rc<Box<[I::Item; OUT_WIDTH]>>,
-    height_ceil_calcs: Rc<Box<[I::Item; OUT_HEIGHT]>>,
+    width_ceil_calcs: &'a [u16],
+    height_ceil_calcs: &'a [u16],
     scaled_line_buffer_repeat: u16,
     current_scaled_line_index: u16,
 }
 
 impl<
+        'a,
         const IN_HEIGHT: usize,
         const IN_WIDTH: usize,
         const OUT_HEIGHT: usize,
         const OUT_WIDTH: usize,
         I,
-    > ScalerIterator<IN_HEIGHT, IN_WIDTH, OUT_HEIGHT, OUT_WIDTH, I>
+    > ScalerIterator<'a, IN_HEIGHT, IN_WIDTH, OUT_HEIGHT, OUT_WIDTH, I>
 where
     I: Iterator<Item = u16>,
 {
-    pub fn new(
-        iterator: I,
-        width_ceil_calcs: Rc<Box<[I::Item; OUT_WIDTH]>>,
-        height_ceil_calcs: Rc<Box<[I::Item; OUT_HEIGHT]>>,
-    ) -> Self {
+    pub fn new(iterator: I, width_ceil_calcs: &'a [u16], height_ceil_calcs: &'a [u16]) -> Self {
         Self {
             iterator: iterator,
             input_current_scan_line: 0,
@@ -104,12 +87,13 @@ where
 }
 
 impl<
+        'a,
         I,
         const IN_HEIGHT: usize,
         const IN_WIDTH: usize,
         const OUT_HEIGHT: usize,
         const OUT_WIDTH: usize,
-    > Iterator for ScalerIterator<IN_HEIGHT, IN_WIDTH, OUT_HEIGHT, OUT_WIDTH, I>
+    > Iterator for ScalerIterator<'a, IN_HEIGHT, IN_WIDTH, OUT_HEIGHT, OUT_WIDTH, I>
 where
     I: Iterator<Item = u16>,
 {

@@ -4,7 +4,7 @@
 #![no_std]
 #![no_main]
 use alloc::boxed::Box;
-use alloc::vec::Vec;
+use alloc::vec::{self, Vec};
 use defmt::*;
 use defmt_rtt as _;
 
@@ -40,7 +40,7 @@ static ALLOCATOR: Heap = Heap::empty();
 fn main() -> ! {
     {
         use core::mem::MaybeUninit;
-        const HEAP_SIZE: usize = 230000;
+        const HEAP_SIZE: usize = 200000;
         static mut HEAP: [MaybeUninit<u8>; HEAP_SIZE] = [MaybeUninit::uninit(); HEAP_SIZE];
         unsafe { ALLOCATOR.init(HEAP.as_ptr() as usize, HEAP_SIZE) }
     }
@@ -50,6 +50,7 @@ fn main() -> ! {
     let mut watchdog = Watchdog::new(pac.WATCHDOG);
     let sio = Sio::new(pac.SIO);
 
+    //  hal::clocks::RtcClock::
     pac.VREG_AND_CHIP_RESET
         .vreg()
         .write(|w| unsafe { w.vsel().bits(0b1101) });
@@ -103,13 +104,21 @@ fn main() -> ! {
     let (mut pio, sm0, _, _, _) = pac.PIO0.split(&mut pac.RESETS);
     rd.set_high().unwrap();
     cs.set_low().unwrap();
-    let endianess = |be: bool, val: u16| {
-        if be {
-            val.to_le()
-        } else {
-            val.to_be()
-        }
-    };
+    // const endianess2: impl Fn(bool, u16) -> u16 = |be: bool, val: u16| {
+    //     if be {
+    //         val.to_le()
+    //     } else {
+    //         val.to_be()
+    //     }
+    // };
+
+    // let endianess = |be: bool, val: u16| {
+    //     if be {
+    //         val.to_le()
+    //     } else {
+    //         val.to_be()
+    //     }
+    // };
 
     let interface =
         pio_interface::PioInterface::new(3, rs, &mut pio, sm0, rw.id().num, (6, 13), endianess);
@@ -154,15 +163,32 @@ fn main() -> ! {
         scaler::ScreenScaler::new();
 
     loop {
-        let mut dis = scaler.clone();
+        let start_time = timer.get_counter();
         display = display
             .async_transfer_mode(0, 0, SCREEN_HEIGHT as u16, SCREEN_WIDTH as u16, |iface| {
                 iface.transfer_16bit_mode(|sm| {
                     let display_iter = GameVideoIter::new(&mut gameboy);
-                    streamer.stream::<_, _>(sm, &mut dis.scale_iterator(display_iter))
+                    streamer.stream::<_, _>(sm, &mut scaler.scale_iterator(display_iter))
                 })
             })
             .unwrap();
+
+        let end_time = timer.get_counter();
+        let diff = end_time - start_time;
+        let milliseconds = diff.to_millis();
+        info!(
+            "Time elapsed: {}:{}",
+            milliseconds / 1000,
+            milliseconds % 1000
+        );
+    }
+}
+#[inline(always)]
+const fn endianess(be: bool, val: u16) -> u16 {
+    if be {
+        val.to_le()
+    } else {
+        val.to_be()
     }
 }
 
