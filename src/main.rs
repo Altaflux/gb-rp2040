@@ -87,10 +87,10 @@ fn main() -> ! {
     // in series with the LED.
     //let mut led_pin = pins.led.into_push_pull_output();
     let reset = pins.gpio2.into_push_pull_output();
-    let mut cs = pins.gpio17.into_push_pull_output();
+    let mut cs = pins.gpio27.into_push_pull_output();
     let rs = pins.gpio28.into_push_pull_output();
     let rw = pins.gpio22.into_function::<hal::gpio::FunctionPio0>();
-    let mut rd = pins.gpio16.into_push_pull_output();
+    let mut rd = pins.gpio26.into_push_pull_output();
 
     let _ = pins.gpio6.into_function::<hal::gpio::FunctionPio0>();
     let _ = pins.gpio7.into_function::<hal::gpio::FunctionPio0>();
