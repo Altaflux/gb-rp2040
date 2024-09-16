@@ -1,4 +1,4 @@
-use alloc::vec::Vec;
+use alloc::{boxed::Box, vec::Vec};
 
 pub struct ScreenScaler<
     const IN_HEIGHT: usize,
@@ -6,8 +6,8 @@ pub struct ScreenScaler<
     const OUT_HEIGHT: usize,
     const OUT_WIDTH: usize,
 > {
-    width_ceil_calcs: Vec<u16>,
-    height_ceil_calcs: Vec<u16>,
+    width_ceil_calcs: Box<[u16]>,
+    height_ceil_calcs: Box<[u16]>,
 }
 
 impl<
@@ -21,14 +21,9 @@ impl<
         let calc_out_width_frac = OUT_WIDTH as f32 / IN_WIDTH as f32;
         let calc_out_height_frac = OUT_HEIGHT as f32 / IN_HEIGHT as f32;
 
-        let mut width_ceil_calcs_1 = alloc::vec![0u16; OUT_WIDTH];
-        let mut height_ceil_calcs_1 = alloc::vec![0u16; OUT_HEIGHT];
-        gen_ceil_array_box_mut(calc_out_width_frac, OUT_WIDTH, &mut width_ceil_calcs_1);
-        gen_ceil_array_box_mut(calc_out_height_frac, OUT_HEIGHT, &mut height_ceil_calcs_1);
-
         Self {
-            width_ceil_calcs: width_ceil_calcs_1,
-            height_ceil_calcs: height_ceil_calcs_1,
+            width_ceil_calcs: generate_scaling_ratio(calc_out_width_frac, IN_WIDTH),
+            height_ceil_calcs: generate_scaling_ratio(calc_out_height_frac, IN_HEIGHT),
         }
     }
     pub fn scale_iterator<'a, I>(&'a self, iterator: I) -> impl Iterator<Item = u16> + 'a
@@ -128,17 +123,16 @@ where
 
                 next_x_position = last_pixel;
             }
-
             //Calculate y position of the next scan line
             let next_scan_line_start =
-                self.height_ceil_calcs[(self.input_current_scan_line + 1) as usize] as u16;
+                self.height_ceil_calcs[(self.input_current_scan_line) as usize] as u16;
             //How many scan lines are in bewteen the previous last scan line and the next, this is the amount of scan line repetitions needed for Y scaling
 
-            self.scaled_line_buffer_repeat =
-                (next_scan_line_start - self.output_current_scan_line) - 0;
+            self.scaled_line_buffer_repeat = next_scan_line_start - self.output_current_scan_line;
+            self.output_current_scan_line =
+                self.output_current_scan_line + self.scaled_line_buffer_repeat;
 
-            self.output_current_scan_line = next_scan_line_start;
-
+            //Calculate y position of the next scan line
             if self.input_current_scan_line >= IN_HEIGHT as u16 - 1 {
                 self.output_current_scan_line = 0;
                 self.input_current_scan_line = 0;
@@ -149,10 +143,12 @@ where
     }
 }
 
-fn gen_ceil_array_box_mut(ratio: f32, size: usize, array: &mut [u16]) {
+fn generate_scaling_ratio(ratio: f32, size: usize) -> Box<[u16]> {
+    let mut array = alloc::vec![0u16; size];
     let mut i = 0;
-    while i < size as i32 {
-        array[i as usize] = num_traits::Float::ceil(ratio * i as f32) as u16;
+    while i < size {
+        array[i] = num_traits::Float::ceil(ratio * (i + 1) as f32) as u16;
         i += 1;
     }
+    array.into_boxed_slice()
 }

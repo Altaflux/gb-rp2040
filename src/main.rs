@@ -4,7 +4,7 @@
 #![no_std]
 #![no_main]
 use alloc::boxed::Box;
-use alloc::vec::{self, Vec};
+use alloc::vec::Vec;
 use defmt::*;
 use defmt_rtt as _;
 
@@ -40,7 +40,7 @@ static ALLOCATOR: Heap = Heap::empty();
 fn main() -> ! {
     {
         use core::mem::MaybeUninit;
-        const HEAP_SIZE: usize = 200000;
+        const HEAP_SIZE: usize = 180000;
         static mut HEAP: [MaybeUninit<u8>; HEAP_SIZE] = [MaybeUninit::uninit(); HEAP_SIZE];
         unsafe { ALLOCATOR.init(HEAP.as_ptr() as usize, HEAP_SIZE) }
     }
@@ -104,21 +104,6 @@ fn main() -> ! {
     let (mut pio, sm0, _, _, _) = pac.PIO0.split(&mut pac.RESETS);
     rd.set_high().unwrap();
     cs.set_low().unwrap();
-    // const endianess2: impl Fn(bool, u16) -> u16 = |be: bool, val: u16| {
-    //     if be {
-    //         val.to_le()
-    //     } else {
-    //         val.to_be()
-    //     }
-    // };
-
-    // let endianess = |be: bool, val: u16| {
-    //     if be {
-    //         val.to_le()
-    //     } else {
-    //         val.to_be()
-    //     }
-    // };
 
     let interface =
         pio_interface::PioInterface::new(3, rs, &mut pio, sm0, rw.id().num, (6, 13), endianess);
@@ -127,7 +112,7 @@ fn main() -> ! {
         interface,
         reset,
         &mut timer,
-        ili9341::Orientation::LandscapeFlipped,
+        ili9341::Orientation::Landscape,
         ili9341::DisplaySize240x320,
     )
     .unwrap();
@@ -165,12 +150,20 @@ fn main() -> ! {
     loop {
         let start_time = timer.get_counter();
         display = display
-            .async_transfer_mode(0, 0, SCREEN_HEIGHT as u16, SCREEN_WIDTH as u16, |iface| {
-                iface.transfer_16bit_mode(|sm| {
-                    let display_iter = GameVideoIter::new(&mut gameboy);
-                    streamer.stream::<_, _>(sm, &mut scaler.scale_iterator(display_iter))
-                })
-            })
+            .async_transfer_mode(
+                0,
+                0,
+                (SCREEN_HEIGHT - 1) as u16,
+                (SCREEN_WIDTH - 1) as u16,
+                |iface| {
+                    iface.transfer_16bit_mode(|sm| {
+                        streamer.stream::<_, _>(
+                            sm,
+                            &mut scaler.scale_iterator(GameVideoIter::new(&mut gameboy)),
+                        )
+                    })
+                },
+            )
             .unwrap();
 
         let end_time = timer.get_counter();
@@ -182,6 +175,8 @@ fn main() -> ! {
             milliseconds % 1000
         );
     }
+
+    display.invert_mode(mode)
 }
 #[inline(always)]
 const fn endianess(be: bool, val: u16) -> u16 {
@@ -260,6 +255,7 @@ impl Screen for GameboyLineBufferDisplay {
         let encoded_color = ((color.red as u16 & 0b11111000) << 8)
             + ((color.green as u16 & 0b11111100) << 3)
             + (color.blue as u16 >> 3);
+
         self.line_buffer[x as usize] = encoded_color;
     }
     fn scanline_complete(&mut self, _y: u8, _skip: bool) {
