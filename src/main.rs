@@ -175,8 +175,6 @@ fn main() -> ! {
             milliseconds % 1000
         );
     }
-
-    display.invert_mode(mode)
 }
 #[inline(always)]
 const fn endianess(be: bool, val: u16) -> u16 {
