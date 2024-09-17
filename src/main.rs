@@ -3,26 +3,33 @@
 //! This will blink an LED attached to GP25, which is the pin the Pico uses for the on-board LED.
 #![no_std]
 #![no_main]
+use core::ops;
+
 use alloc::boxed::Box;
-use alloc::vec::Vec;
+use alloc::vec::{self, Vec};
 use defmt::*;
 use defmt_rtt as _;
 
 use embedded_hal::digital::OutputPin;
+use embedded_sdmmc::{sdcard, SdCard, VolumeManager};
+use gb_core::hardware::rom::Rom;
+use gb_core::hardware::rom::RomManager;
 use ili9341::{DisplaySize, DisplaySize240x320};
 use panic_probe as _;
 
+use hal::fugit::RateExtU32;
 use rp2040_hal::dma::DMAExt;
-use rp2040_hal::entry;
 use rp2040_hal::{self as hal, pio::PIOExt};
+use rp2040_hal::{entry, Clock};
+
 use rp_pico;
 extern crate alloc;
 // Provide an alias for our BSP so we can switch targets quickly.
 // Uncomment the BSP you included in Cargo.toml, the rest of the code does not need to change.
 
-use hal::{clocks::init_clocks_and_plls, pac, sio::Sio, watchdog::Watchdog};
-
 use embedded_alloc::Heap;
+
+use hal::{clocks::init_clocks_and_plls, pac, sio::Sio, spi, spi::Spi, watchdog::Watchdog};
 
 use gb_core::{gameboy::GameBoy, hardware::Screen};
 mod array_scaler;
@@ -30,6 +37,7 @@ mod dma_transfer;
 mod pio_interface;
 mod rp_hal;
 mod scaler;
+mod spi_device;
 mod stream_display;
 //
 
@@ -105,6 +113,40 @@ fn main() -> ! {
     rd.set_high().unwrap();
     cs.set_low().unwrap();
 
+    ///////////////////////////////SD CARD
+    let spi_sclk: hal::gpio::Pin<_, _, hal::gpio::PullDown> =
+        pins.gpio18.into_function::<hal::gpio::FunctionSpi>();
+    let spi_mosi: hal::gpio::Pin<_, _, hal::gpio::PullDown> =
+        pins.gpio19.into_function::<hal::gpio::FunctionSpi>();
+    let spi_cs = pins.gpio17.into_push_pull_output();
+    let spi_miso: hal::gpio::Pin<_, _, hal::gpio::PullDown> =
+        pins.gpio16.into_function::<hal::gpio::FunctionSpi>();
+
+    // Create the SPI driver instance for the SPI0 device
+    let spi = spi::Spi::<_, _, _, 8>::new(pac.SPI0, (spi_mosi, spi_miso, spi_sclk));
+    let spi = spi.init(
+        &mut pac.RESETS,
+        clocks.peripheral_clock.freq(),
+        400.kHz(), // card initialization happens at low baud rate
+        embedded_hal::spi::MODE_0,
+    );
+    let exclusive_spi = spi_device::ExclusiveDevice::new(spi, spi_cs, timer).unwrap();
+    let sdcard = SdCard::new(exclusive_spi, timer);
+    let mut volume_mgr = VolumeManager::new(sdcard, DummyTimesource::default());
+
+    let mut volume0 = volume_mgr
+        .open_volume(embedded_sdmmc::VolumeIdx(0))
+        .unwrap();
+    let mut root_dir = volume0.open_root_dir().unwrap();
+    let mut my_file = root_dir
+        .open_file_in_dir("tetris.gb", embedded_sdmmc::Mode::ReadOnly)
+        .unwrap();
+
+    // let gb_rom = gb_core::hardware::rom::Rom::from_bytes_two(my_vec.as_slice());
+    let roms = SdRomManager::new(my_file);
+    let gb_rom = gb_core::hardware::rom::Rom::from_bytes(roms);
+    let fk = gb_rom.into_cartridge();
+    ///////////////////////////////
     let interface =
         pio_interface::PioInterface::new(3, rs, &mut pio, sm0, rw.id().num, (6, 13), endianess);
 
@@ -117,15 +159,15 @@ fn main() -> ! {
     )
     .unwrap();
 
-    let gb_rom = load_rom_from_path();
-    let cart = gb_rom.into_cartridge();
+    //let gb_rom = load_rom_from_path();
+    //   let cart = gb_rom.into_cartridge();
     let boot_rom = gb_core::hardware::boot_rom::Bootrom::new(Some(
         gb_core::hardware::boot_rom::BootromData::from_bytes(include_bytes!(
             "C:\\roms\\dmg_boot.bin"
         )),
     ));
     let screen = GameboyLineBufferDisplay::new();
-    let mut gameboy = GameBoy::create(screen, cart, boot_rom);
+    let mut gameboy = GameBoy::create(screen, fk, boot_rom);
 
     const SCREEN_WIDTH: usize =
         (<DisplaySize240x320 as DisplaySize>::WIDTH as f32 / 1.0f32) as usize;
@@ -174,6 +216,8 @@ fn main() -> ! {
             milliseconds / 1000,
             milliseconds % 1000
         );
+        info!("Free Mem: {}", ALLOCATOR.free());
+        info!("Used Mem: {}", ALLOCATOR.used());
     }
 }
 #[inline(always)]
@@ -185,12 +229,12 @@ const fn endianess(be: bool, val: u16) -> u16 {
     }
 }
 
-pub struct GameVideoIter<'a> {
-    gameboy: &'a mut GameBoy<GameboyLineBufferDisplay>,
+pub struct GameVideoIter<'a, 'b> {
+    gameboy: &'a mut GameBoy<'b, GameboyLineBufferDisplay>,
     current_line_index: usize,
 }
-impl<'a> GameVideoIter<'a> {
-    fn new(gameboy: &'a mut GameBoy<GameboyLineBufferDisplay>) -> Self {
+impl<'a, 'b> GameVideoIter<'a, 'b> {
+    fn new(gameboy: &'a mut GameBoy<'b, GameboyLineBufferDisplay>) -> Self {
         Self {
             gameboy: gameboy,
             current_line_index: 0,
@@ -198,7 +242,7 @@ impl<'a> GameVideoIter<'a> {
     }
 }
 
-impl<'a> Iterator for GameVideoIter<'a> {
+impl<'a, 'b> Iterator for GameVideoIter<'a, 'b> {
     type Item = u16;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -263,9 +307,139 @@ impl Screen for GameboyLineBufferDisplay {
     fn draw(&mut self, _: bool) {}
 }
 
-pub fn load_rom_from_path() -> gb_core::hardware::rom::Rom<'static> {
-    let rom_f = include_bytes!("C:\\roms\\tetris.gb");
-    gb_core::hardware::rom::Rom::from_bytes(rom_f)
-}
+// pub fn load_rom_from_path<'a>() -> gb_core::hardware::rom::Rom<'a> {
+//     let rom_f = include_bytes!("C:\\roms\\tetris.gb");
+//     gb_core::hardware::rom::Rom::from_bytes(rom_f)
+// }
+
+// pub fn load_rom<
+//     'a,
+//     D: embedded_sdmmc::BlockDevice,
+//     T: embedded_sdmmc::TimeSource,
+//     const MAX_DIRS: usize,
+//     const MAX_FILES: usize,
+//     const MAX_VOLUMES: usize,
+// >(file: ) -> impl gb_core::hardware::rom::RomManager {
+// }
 
 // End of file
+
+#[derive(Default)]
+pub struct DummyTimesource();
+
+impl embedded_sdmmc::TimeSource for DummyTimesource {
+    // In theory you could use the RTC of the rp2040 here, if you had
+    // any external time synchronizing device.
+    fn get_timestamp(&self) -> embedded_sdmmc::Timestamp {
+        embedded_sdmmc::Timestamp {
+            year_since_1970: 0,
+            zero_indexed_month: 0,
+            zero_indexed_day: 0,
+            hours: 0,
+            minutes: 0,
+            seconds: 0,
+        }
+    }
+}
+
+struct SdRomManager<
+    'a,
+    D: embedded_sdmmc::BlockDevice,
+    T: embedded_sdmmc::TimeSource,
+    const MAX_DIRS: usize,
+    const MAX_FILES: usize,
+    const MAX_VOLUMES: usize,
+> {
+    file: embedded_sdmmc::File<'a, D, T, MAX_DIRS, MAX_FILES, MAX_VOLUMES>,
+    bank_0: Box<[u8; 0x4000]>,
+    active_bank: Box<[u8; 0x4000]>,
+    current_bank: u8,
+}
+impl<
+        'a,
+        D: embedded_sdmmc::BlockDevice,
+        T: embedded_sdmmc::TimeSource,
+        const MAX_DIRS: usize,
+        const MAX_FILES: usize,
+        const MAX_VOLUMES: usize,
+    > SdRomManager<'a, D, T, MAX_DIRS, MAX_FILES, MAX_VOLUMES>
+{
+    fn new(mut file: embedded_sdmmc::File<'a, D, T, MAX_DIRS, MAX_FILES, MAX_VOLUMES>) -> Self {
+        let mut bank_0 = Box::new([0u8; 0x4000]);
+        file.seek_from_start(0u32).unwrap();
+        file.read(&mut *bank_0).unwrap();
+
+        let mut result = Self {
+            active_bank: Box::new([0u8; 0x4000]),
+            bank_0: bank_0,
+            current_bank: 1,
+            file: file,
+        };
+
+        result.set_active_bank(1);
+        result
+    }
+
+    pub fn compare(value: u16, from: u16, to: u16) -> isize {
+        if value < from {
+            return value as isize - from as isize;
+        } else if value > to {
+            return value as isize - to as isize;
+        }
+        return 0;
+    }
+}
+impl<
+        'a,
+        D: embedded_sdmmc::BlockDevice,
+        T: embedded_sdmmc::TimeSource,
+        const MAX_DIRS: usize,
+        const MAX_FILES: usize,
+        const MAX_VOLUMES: usize,
+    > gb_core::hardware::rom::RomManager
+    for SdRomManager<'a, D, T, MAX_DIRS, MAX_FILES, MAX_VOLUMES>
+{
+    fn set_active_bank(&mut self, bank: u8) {
+        let start = 0x4000 + ((bank as u16 - 1) * (0x7FFF - 0x4000 + 1));
+
+        self.file.seek_from_start(start as u32).unwrap();
+        self.file.read(&mut *self.active_bank).unwrap();
+        self.current_bank = bank;
+    }
+}
+impl<
+        'a,
+        D: embedded_sdmmc::BlockDevice,
+        T: embedded_sdmmc::TimeSource,
+        const MAX_DIRS: usize,
+        const MAX_FILES: usize,
+        const MAX_VOLUMES: usize,
+    > core::ops::Index<usize> for SdRomManager<'a, D, T, MAX_DIRS, MAX_FILES, MAX_VOLUMES>
+{
+    type Output = u8;
+
+    fn index(&self, index: usize) -> &Self::Output {
+        if Self::compare(index as u16, 0x4000, 0x7FFF) == 0 {
+            info!("Read from bank 1: {}", index);
+            return &self.active_bank[index - 0x4000];
+        }
+        //info!("Read from bank 0");
+        &self.bank_0[index as usize]
+    }
+}
+impl<
+        'a,
+        D: embedded_sdmmc::BlockDevice,
+        T: embedded_sdmmc::TimeSource,
+        const MAX_DIRS: usize,
+        const MAX_FILES: usize,
+        const MAX_VOLUMES: usize,
+    > core::ops::Index<core::ops::Range<usize>>
+    for SdRomManager<'a, D, T, MAX_DIRS, MAX_FILES, MAX_VOLUMES>
+{
+    type Output = [u8];
+
+    fn index(&self, index: core::ops::Range<usize>) -> &Self::Output {
+        return &self.bank_0[index];
+    }
+}
