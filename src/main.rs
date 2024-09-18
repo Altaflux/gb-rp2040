@@ -3,6 +3,8 @@
 //! This will blink an LED attached to GP25, which is the pin the Pico uses for the on-board LED.
 #![no_std]
 #![no_main]
+use core::borrow::{Borrow, BorrowMut};
+use core::cell::{Cell, RefCell};
 use core::ops;
 
 use alloc::boxed::Box;
@@ -139,7 +141,7 @@ fn main() -> ! {
         .unwrap();
     let mut root_dir = volume0.open_root_dir().unwrap();
     let mut my_file = root_dir
-        .open_file_in_dir("tetris.gb", embedded_sdmmc::Mode::ReadOnly)
+        .open_file_in_dir("sml.gb", embedded_sdmmc::Mode::ReadOnly)
         .unwrap();
 
     // let gb_rom = gb_core::hardware::rom::Rom::from_bytes_two(my_vec.as_slice());
@@ -350,10 +352,10 @@ struct SdRomManager<
     const MAX_FILES: usize,
     const MAX_VOLUMES: usize,
 > {
-    file: embedded_sdmmc::File<'a, D, T, MAX_DIRS, MAX_FILES, MAX_VOLUMES>,
+    file: RefCell<embedded_sdmmc::File<'a, D, T, MAX_DIRS, MAX_FILES, MAX_VOLUMES>>,
     bank_0: Box<[u8; 0x4000]>,
-    active_bank: Box<[u8; 0x4000]>,
-    current_bank: u8,
+    active_bank: RefCell<Box<[u8; 0x4000]>>,
+    current_bank_offset: Cell<usize>,
 }
 impl<
         'a,
@@ -369,24 +371,24 @@ impl<
         file.seek_from_start(0u32).unwrap();
         file.read(&mut *bank_0).unwrap();
 
-        let mut result = Self {
-            active_bank: Box::new([0u8; 0x4000]),
+        let result = Self {
+            active_bank: RefCell::new(Box::new([0u8; 0x4000])),
             bank_0: bank_0,
-            current_bank: 1,
-            file: file,
+            current_bank_offset: Cell::new(0xFFFF),
+            file: RefCell::new(file),
         };
 
-        result.set_active_bank(1);
         result
     }
 
-    pub fn compare(value: u16, from: u16, to: u16) -> isize {
-        if value < from {
-            return value as isize - from as isize;
-        } else if value > to {
-            return value as isize - to as isize;
-        }
-        return 0;
+    pub fn set_active_bank(&self, bank_offset: usize) {
+        info!("Switching to bank: {:#06x}", bank_offset);
+        let active_bank = &mut *(*(self.active_bank.borrow_mut()));
+        let mut file = self.file.borrow_mut();
+        file.seek_from_start(bank_offset as u32).unwrap();
+        file.read(active_bank).unwrap();
+        info!("Bank switch complete");
+        self.current_bank_offset.set(bank_offset);
     }
 }
 impl<
@@ -399,12 +401,17 @@ impl<
     > gb_core::hardware::rom::RomManager
     for SdRomManager<'a, D, T, MAX_DIRS, MAX_FILES, MAX_VOLUMES>
 {
-    fn set_active_bank(&mut self, bank: u8) {
-        let start = 0x4000 + ((bank as u16 - 1) * (0x7FFF - 0x4000 + 1));
+    fn read_from_offset(&self, seek_offset: usize, index: usize) -> u8 {
+        if seek_offset == 0x0000 {
+            return self.bank_0[index as usize];
+        }
 
-        self.file.seek_from_start(start as u32).unwrap();
-        self.file.read(&mut *self.active_bank).unwrap();
-        self.current_bank = bank;
+        let current_back = self.current_bank_offset.get();
+        if current_back == seek_offset {
+            return self.active_bank.borrow()[index as usize];
+        }
+        self.set_active_bank(seek_offset);
+        return self.active_bank.borrow()[index as usize];
     }
 }
 impl<
@@ -419,11 +426,6 @@ impl<
     type Output = u8;
 
     fn index(&self, index: usize) -> &Self::Output {
-        if Self::compare(index as u16, 0x4000, 0x7FFF) == 0 {
-            info!("Read from bank 1: {}", index);
-            return &self.active_bank[index - 0x4000];
-        }
-        //info!("Read from bank 0");
         &self.bank_0[index as usize]
     }
 }
