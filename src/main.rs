@@ -4,13 +4,14 @@
 #![no_std]
 #![no_main]
 
+use alloc::boxed::Box;
 use alloc::vec::Vec;
 use defmt::*;
 use defmt_rtt as _;
 
 use embedded_hal::digital::OutputPin;
 use embedded_sdmmc::{SdCard, VolumeManager};
-use gameboy::display::GameboyLineBufferDisplay;
+use gameboy::display::{GameVideoIter, GameboyLineBufferDisplay};
 use ili9341::{DisplaySize, DisplaySize240x320};
 use panic_probe as _;
 
@@ -126,7 +127,7 @@ fn main() -> ! {
     let spi = spi.init(
         &mut pac.RESETS,
         clocks.peripheral_clock.freq(),
-        400.kHz(),
+        400.kHz(), // card initialization happens at low baud rate
         embedded_hal::spi::MODE_0,
     );
     let exclusive_spi = spi_device::ExclusiveDevice::new(spi, spi_cs, timer).unwrap();
@@ -137,6 +138,15 @@ fn main() -> ! {
         .open_volume(embedded_sdmmc::VolumeIdx(0))
         .unwrap();
     let mut root_dir = volume0.open_root_dir().unwrap();
+
+    //Read boot rom
+    let mut boot_rom_file = root_dir
+        .open_file_in_dir("dmg_boot.bin", embedded_sdmmc::Mode::ReadOnly)
+        .unwrap();
+    let mut boot_rom_data = Box::new([0u8; 0x100]);
+    boot_rom_file.read(&mut *boot_rom_data).unwrap();
+    boot_rom_file.close().unwrap();
+
     let rom_file = root_dir
         .open_file_in_dir("sml.gb", embedded_sdmmc::Mode::ReadOnly)
         .unwrap();
@@ -158,10 +168,9 @@ fn main() -> ! {
     .unwrap();
 
     let boot_rom = gb_core::hardware::boot_rom::Bootrom::new(Some(
-        gb_core::hardware::boot_rom::BootromData::from_bytes(include_bytes!(
-            "C:\\roms\\dmg_boot.bin"
-        )),
+        gb_core::hardware::boot_rom::BootromData::from_bytes(&*boot_rom_data),
     ));
+    core::mem::drop(boot_rom_data);
     let screen = GameboyLineBufferDisplay::new();
     let mut gameboy = GameBoy::create(screen, cartridge, boot_rom);
 
@@ -222,44 +231,5 @@ const fn endianess(be: bool, val: u16) -> u16 {
         val.to_le()
     } else {
         val.to_be()
-    }
-}
-
-pub struct GameVideoIter<'a, 'b> {
-    gameboy: &'a mut GameBoy<'b, GameboyLineBufferDisplay>,
-    current_line_index: usize,
-}
-impl<'a, 'b> GameVideoIter<'a, 'b> {
-    fn new(gameboy: &'a mut GameBoy<'b, GameboyLineBufferDisplay>) -> Self {
-        Self {
-            gameboy: gameboy,
-            current_line_index: 0,
-        }
-    }
-}
-
-impl<'a, 'b> Iterator for GameVideoIter<'a, 'b> {
-    type Item = u16;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        loop {
-            if self.gameboy.get_screen().turn_off {
-                self.gameboy.get_screen().turn_off = false;
-                return None;
-            }
-            if self.gameboy.get_screen().line_complete {
-                let pixel = self.gameboy.get_screen().line_buffer[self.current_line_index];
-                if self.current_line_index + 1 >= 160 {
-                    self.current_line_index = 0;
-                    self.gameboy.get_screen().line_complete = false;
-                } else {
-                    self.current_line_index = self.current_line_index + 1;
-                }
-
-                return Some(pixel);
-            } else {
-                self.gameboy.tick();
-            }
-        }
     }
 }

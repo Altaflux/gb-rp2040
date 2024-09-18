@@ -1,5 +1,5 @@
 use alloc::boxed::Box;
-use gb_core::hardware::Screen;
+use gb_core::{gameboy::GameBoy, hardware::Screen};
 
 pub struct GameboyLineBufferDisplay {
     pub line_buffer: Box<[u16; 160]>,
@@ -38,4 +38,43 @@ impl Screen for GameboyLineBufferDisplay {
     }
 
     fn draw(&mut self, _: bool) {}
+}
+
+pub struct GameVideoIter<'a, 'b> {
+    gameboy: &'a mut GameBoy<'b, GameboyLineBufferDisplay>,
+    current_line_index: usize,
+}
+impl<'a, 'b> GameVideoIter<'a, 'b> {
+    pub fn new(gameboy: &'a mut GameBoy<'b, GameboyLineBufferDisplay>) -> Self {
+        Self {
+            gameboy: gameboy,
+            current_line_index: 0,
+        }
+    }
+}
+
+impl<'a, 'b> Iterator for GameVideoIter<'a, 'b> {
+    type Item = u16;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            if self.gameboy.get_screen().turn_off {
+                self.gameboy.get_screen().turn_off = false;
+                return None;
+            }
+            if self.gameboy.get_screen().line_complete {
+                let pixel = self.gameboy.get_screen().line_buffer[self.current_line_index];
+                if self.current_line_index + 1 >= 160 {
+                    self.current_line_index = 0;
+                    self.gameboy.get_screen().line_complete = false;
+                } else {
+                    self.current_line_index = self.current_line_index + 1;
+                }
+
+                return Some(pixel);
+            } else {
+                self.gameboy.tick();
+            }
+        }
+    }
 }
