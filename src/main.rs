@@ -309,23 +309,6 @@ impl Screen for GameboyLineBufferDisplay {
     fn draw(&mut self, _: bool) {}
 }
 
-// pub fn load_rom_from_path<'a>() -> gb_core::hardware::rom::Rom<'a> {
-//     let rom_f = include_bytes!("C:\\roms\\tetris.gb");
-//     gb_core::hardware::rom::Rom::from_bytes(rom_f)
-// }
-
-// pub fn load_rom<
-//     'a,
-//     D: embedded_sdmmc::BlockDevice,
-//     T: embedded_sdmmc::TimeSource,
-//     const MAX_DIRS: usize,
-//     const MAX_FILES: usize,
-//     const MAX_VOLUMES: usize,
-// >(file: ) -> impl gb_core::hardware::rom::RomManager {
-// }
-
-// End of file
-
 #[derive(Default)]
 pub struct DummyTimesource();
 
@@ -344,6 +327,9 @@ impl embedded_sdmmc::TimeSource for DummyTimesource {
     }
 }
 
+use const_lru::ConstLru;
+use core::mem;
+
 struct SdRomManager<
     'a,
     D: embedded_sdmmc::BlockDevice,
@@ -356,6 +342,7 @@ struct SdRomManager<
     bank_0: Box<[u8; 0x4000]>,
     active_bank: RefCell<Box<[u8; 0x4000]>>,
     current_bank_offset: Cell<usize>,
+    bank_lru: RefCell<ConstLru<usize, Box<[u8; 0x4000]>, 4, u8>>,
 }
 impl<
         'a,
@@ -376,9 +363,17 @@ impl<
             bank_0: bank_0,
             current_bank_offset: Cell::new(0xFFFF),
             file: RefCell::new(file),
+            bank_lru: RefCell::new(ConstLru::new()),
         };
 
         result
+    }
+    pub fn read_bank(&self, bank_offset: usize) -> Box<[u8; 0x4000]> {
+        let mut buffer: Box<[u8; 0x4000]> = Box::new([0u8; 0x4000]);
+        let mut file = self.file.borrow_mut();
+        file.seek_from_start(bank_offset as u32).unwrap();
+        file.read(&mut *buffer).unwrap();
+        buffer
     }
 
     pub fn set_active_bank(&self, bank_offset: usize) {
@@ -405,13 +400,19 @@ impl<
         if seek_offset == 0x0000 {
             return self.bank_0[index as usize];
         }
-
-        let current_back = self.current_bank_offset.get();
-        if current_back == seek_offset {
-            return self.active_bank.borrow()[index as usize];
-        }
-        self.set_active_bank(seek_offset);
-        return self.active_bank.borrow()[index as usize];
+        let mut bank_lru = self.bank_lru.borrow_mut();
+        let bank = bank_lru.get(&seek_offset);
+        let value = match bank {
+            Some(buffer) => buffer[index],
+            None => {
+                info!("Adding bank: {:#06x} to LRU", seek_offset);
+                let buffer: Box<[u8; 0x4000]> = self.read_bank(seek_offset);
+                let result = buffer[index];
+                bank_lru.insert(seek_offset, buffer);
+                result
+            }
+        };
+        value
     }
 }
 impl<
