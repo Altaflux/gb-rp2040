@@ -37,7 +37,6 @@ mod pio_interface;
 mod rp_hal;
 mod scaler;
 mod sdcard;
-mod spi_device;
 mod stream_display;
 //
 
@@ -48,7 +47,7 @@ static ALLOCATOR: Heap = Heap::empty();
 fn main() -> ! {
     {
         use core::mem::MaybeUninit;
-        const HEAP_SIZE: usize = 180000;
+        const HEAP_SIZE: usize = 203000;
         static mut HEAP: [MaybeUninit<u8>; HEAP_SIZE] = [MaybeUninit::uninit(); HEAP_SIZE];
         unsafe { ALLOCATOR.init(HEAP.as_ptr() as usize, HEAP_SIZE) }
     }
@@ -130,7 +129,7 @@ fn main() -> ! {
         400.kHz(), // card initialization happens at low baud rate
         embedded_hal::spi::MODE_0,
     );
-    let exclusive_spi = spi_device::ExclusiveDevice::new(spi, spi_cs, timer).unwrap();
+    let exclusive_spi = embedded_hal_bus::spi::ExclusiveDevice::new(spi, spi_cs, timer).unwrap();
     let sdcard = SdCard::new(exclusive_spi, timer);
     let mut volume_mgr = VolumeManager::new(sdcard, sdcard::DummyTimesource::default());
 
@@ -172,7 +171,12 @@ fn main() -> ! {
     ));
     core::mem::drop(boot_rom_data);
     let screen = GameboyLineBufferDisplay::new();
-    let mut gameboy = GameBoy::create(screen, cartridge, boot_rom);
+    let mut gameboy = GameBoy::create(
+        screen,
+        cartridge,
+        boot_rom,
+        Box::new(gameboy::audio::NullAudioPlayer),
+    );
 
     const SCREEN_WIDTH: usize =
         (<DisplaySize240x320 as DisplaySize>::WIDTH as f32 / 1.0f32) as usize;

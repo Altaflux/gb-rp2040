@@ -35,7 +35,10 @@ num-traits = { version = "0.2.19", default-features = false, features = [
 embedded-dma = "0.2.0"
 embedded-sdmmc = "0.8.0"
 const-lru = "1.0.0"
-#embedded-hal-bus = { git = "https://github.com/rust-embedded/embedded-hal.git", default-features = false, default_features = false }
+embedded-hal-bus = { version = "0.2.0", features = ["defmt-03"] }
+# We aren't using this, but embedded-hal-bus 0.2 unconditionally requires atomics.
+# Should be fixed in e-h-b 0.3 via https://github.com/rust-embedded/embedded-hal/pull/607
+portable-atomic = { version = "1.7.0", features = ["critical-section"] }
 ##
 
 [patch.crates-io]
