@@ -1,6 +1,6 @@
 use alloc::{boxed::Box, vec::Vec};
 
-pub struct ScreenScaler<
+pub struct GenScaler<
     const IN_HEIGHT: usize,
     const IN_WIDTH: usize,
     const OUT_HEIGHT: usize,
@@ -15,7 +15,7 @@ impl<
         const IN_WIDTH: usize,
         const OUT_HEIGHT: usize,
         const OUT_WIDTH: usize,
-    > ScreenScaler<IN_HEIGHT, IN_WIDTH, OUT_HEIGHT, OUT_WIDTH>
+    > GenScaler<IN_HEIGHT, IN_WIDTH, OUT_HEIGHT, OUT_WIDTH>
 {
     pub fn new() -> Self {
         let calc_out_width_frac = OUT_WIDTH as f32 / IN_WIDTH as f32;

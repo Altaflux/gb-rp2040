@@ -1,4 +1,5 @@
 //New Scaler
+use byte_slice_cast::AsByteSlice;
 
 pub struct ScreenHandler<'a, DT, T: LineTransfer<Item = DT>, I: Iterator<Item = DT>>
 where
@@ -30,7 +31,9 @@ where
 {
     pub fn compute_line(self) -> (T, &'static mut [DT]) {
         let mut transfer = self.line_transfer;
+
         let mut buffer = self.scaled_scan_line_buffer;
+        // AsByteSlice::as_byte_slice(buffer);
 
         let mut width_position = 0;
         for pixel in self.iterator {

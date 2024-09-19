@@ -67,5 +67,6 @@ where
     type Item = T;
     fn send_scanline(&mut self, line: &'static mut [Self::Item]) -> &'static mut [Self::Item] {
         self.do_tranfer(line)
+        //line
     }
 }

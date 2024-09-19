@@ -78,3 +78,45 @@ impl<'a, 'b> Iterator for GameVideoIter<'a, 'b> {
         }
     }
 }
+///////////
+///
+///
+///
+pub struct GameboyLineBufferDisplayU8 {
+    pub line_buffer: Box<[u8; 160]>,
+    pub line_complete: bool,
+    pub turn_off: bool,
+}
+
+impl GameboyLineBufferDisplayU8 {
+    pub fn new() -> Self {
+        Self {
+            line_buffer: Box::new([0; 160]),
+            line_complete: false,
+            turn_off: false,
+        }
+    }
+}
+
+impl Screen for GameboyLineBufferDisplayU8 {
+    fn turn_on(&mut self) {
+        self.turn_off = true;
+    }
+
+    fn turn_off(&mut self) {
+        //todo!()
+    }
+
+    fn set_pixel(&mut self, x: u8, _y: u8, color: gb_core::hardware::color_palette::Color) {
+        let encoded_color = ((color.red as u16 & 0b11111000) << 8)
+            + ((color.green as u16 & 0b11111100) << 3)
+            + (color.blue as u16 >> 3);
+
+        self.line_buffer[x as usize] = encoded_color as u8;
+    }
+    fn scanline_complete(&mut self, _y: u8, _skip: bool) {
+        self.line_complete = true;
+    }
+
+    fn draw(&mut self, _: bool) {}
+}
