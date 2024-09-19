@@ -99,14 +99,14 @@ fn main() -> ! {
     let rw = pins.gpio22.into_function::<hal::gpio::FunctionPio0>();
     let mut rd = pins.gpio26.into_push_pull_output();
 
+    let _ = pins.gpio3.into_function::<hal::gpio::FunctionPio0>();
+    let _ = pins.gpio4.into_function::<hal::gpio::FunctionPio0>();
+    let _ = pins.gpio5.into_function::<hal::gpio::FunctionPio0>();
     let _ = pins.gpio6.into_function::<hal::gpio::FunctionPio0>();
     let _ = pins.gpio7.into_function::<hal::gpio::FunctionPio0>();
     let _ = pins.gpio8.into_function::<hal::gpio::FunctionPio0>();
     let _ = pins.gpio9.into_function::<hal::gpio::FunctionPio0>();
     let _ = pins.gpio10.into_function::<hal::gpio::FunctionPio0>();
-    let _ = pins.gpio11.into_function::<hal::gpio::FunctionPio0>();
-    let _ = pins.gpio12.into_function::<hal::gpio::FunctionPio0>();
-    let _ = pins.gpio13.into_function::<hal::gpio::FunctionPio0>();
 
     let (mut pio, sm0, _, _, _) = pac.PIO0.split(&mut pac.RESETS);
     rd.set_high().unwrap();
@@ -155,7 +155,7 @@ fn main() -> ! {
     let cartridge = gb_rom.into_cartridge();
     ///////////////////////////////
     let interface =
-        pio_interface::PioInterface::new(3, rs, &mut pio, sm0, rw.id().num, (6, 13), endianess);
+        pio_interface::PioInterface::new(3, rs, &mut pio, sm0, rw.id().num, (3, 10), endianess);
 
     let mut display = ili9341::Ili9341::new_orig(
         interface,
