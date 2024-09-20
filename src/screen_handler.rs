@@ -1,5 +1,5 @@
 use crate::array_scaler::LineTransfer;
-use byte_slice_cast::*;
+
 pub struct SpiScreenHandler<'a, T: LineTransfer<Item = u8>, I: Iterator<Item = u16>> {
     iterator: &'a mut I,
     scaled_scan_line_buffer: &'static mut [u8],

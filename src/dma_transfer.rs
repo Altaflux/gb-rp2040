@@ -36,7 +36,6 @@ where
 
     pub fn do_tranfer(&mut self, buffer: &'static mut [T]) -> &'static mut [T] {
         let dma_state = core::mem::replace(&mut self.dma, None).unwrap();
-
         let (ch, old_buffer, tx) = match dma_state {
             DmaState::IDLE(ch, buff, tx) => (ch, buff, tx),
             DmaState::RUNNING(dma) => dma.wait(),
@@ -67,6 +66,5 @@ where
     type Item = T;
     fn send_scanline(&mut self, line: &'static mut [Self::Item]) -> &'static mut [Self::Item] {
         self.do_tranfer(line)
-        //line
     }
 }

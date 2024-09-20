@@ -5,6 +5,7 @@
 #![no_main]
 
 use core::borrow::BorrowMut;
+use core::u16;
 
 use alloc::boxed::Box;
 use alloc::vec::Vec;
@@ -12,6 +13,7 @@ use defmt::*;
 use defmt_rtt as _;
 
 use embedded_hal::digital::OutputPin;
+use embedded_hal::spi::SpiDevice;
 use embedded_sdmmc::{SdCard, VolumeManager};
 use gameboy::display::{GameVideoIter, GameboyLineBufferDisplay};
 use ili9341::{DisplaySize, DisplaySize240x320};
@@ -175,7 +177,7 @@ fn main() -> ! {
     let spi_screen = spi_screen.init(
         &mut pac.RESETS,
         clocks.peripheral_clock.freq(),
-        20.MHz(), // card initialization happens at low baud rate
+        80.MHz(), // card initialization happens at low baud rate
         embedded_hal::spi::MODE_0,
     );
     spi_cs.set_low().unwrap();
@@ -213,17 +215,17 @@ fn main() -> ! {
         (<DisplaySize240x320 as DisplaySize>::HEIGHT as f32 / 1.0f32) as usize;
 
     let spare: &'static mut [u8] =
-        cortex_m::singleton!(: Vec<u8>  = alloc::vec![0; SCREEN_WIDTH * 2 ])
+        cortex_m::singleton!(: Vec<u8>  = alloc::vec![0; SCREEN_WIDTH  ])
             .unwrap()
             .as_mut_slice();
 
     let dm_spare: &'static mut [u8] =
-        cortex_m::singleton!(: Vec<u8>  = alloc::vec![0; SCREEN_WIDTH * 2])
+        cortex_m::singleton!(: Vec<u8>  = alloc::vec![0; SCREEN_WIDTH ])
             .unwrap()
             .as_mut_slice();
 
     let dma = pac.DMA.split(&mut pac.RESETS);
-    let mut streamer = stream_display_gen::StreamerSpi::new(dma.ch0, dm_spare, spare);
+    let mut streamer = stream_display_gen::StreamerSpi::new(dma.ch4, dm_spare, spare);
     let scaler: scaler::ScreenScaler<144, 160, { SCREEN_WIDTH }, { SCREEN_HEIGHT }> =
         scaler::ScreenScaler::new();
 
@@ -236,11 +238,10 @@ fn main() -> ! {
                 (SCREEN_HEIGHT - 1) as u16,
                 (SCREEN_WIDTH - 1) as u16,
                 |iface| {
-                    let (mut sp, mut dc) = iface.release();
-                    dc.set_high().unwrap();
-                    sp = sp.share_bus(|mut bu| {
+                    let (mut sp, dc) = iface.release();
+                    sp = sp.share_bus(|bus| {
                         streamer.stream::<_, _>(
-                            bu,
+                            bus,
                             &mut scaler.scale_iterator(GameVideoIter::new(&mut gameboy)),
                         )
                     });
@@ -248,15 +249,7 @@ fn main() -> ! {
                 },
             )
             .unwrap();
-        // display
-        //     .draw_raw_iter(
-        //         0,
-        //         0,
-        //         (SCREEN_HEIGHT - 1) as u16,
-        //         (SCREEN_WIDTH - 1) as u16,
-        //         scaler.scale_iterator(GameVideoIter::new(&mut gameboy)),
-        //     )
-        //     .unwrap();
+
         let end_time = timer.get_counter();
         let diff = end_time - start_time;
         let milliseconds = diff.to_millis();
@@ -275,5 +268,15 @@ const fn endianess(be: bool, val: u16) -> u16 {
         val.to_le()
     } else {
         val.to_be()
+    }
+}
+
+struct InfiniteIter;
+
+impl Iterator for InfiniteIter {
+    type Item = u16;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        Some(3585)
     }
 }

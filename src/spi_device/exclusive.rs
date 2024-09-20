@@ -44,9 +44,12 @@ impl<BUS, CS, D> ExclusiveDevice<BUS, CS, D> {
     pub fn share_bus<F>(mut self, mut callback: F) -> Self
     where
         F: FnMut(BUS) -> BUS,
+        CS: OutputPin,
     {
+        self.cs.set_low().unwrap();
         let interface = (callback)(self.bus);
         self.bus = interface;
+        self.cs.set_high().unwrap();
         self
     }
 }
