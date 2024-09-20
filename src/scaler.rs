@@ -26,11 +26,12 @@ impl<
             height_ceil_calcs: generate_scaling_ratio(calc_out_height_frac, IN_HEIGHT),
         }
     }
-    pub fn scale_iterator<'a, I>(&'a self, iterator: I) -> impl Iterator<Item = u16> + 'a
+    pub fn scale_iterator<'a, T, I>(&'a self, iterator: I) -> impl Iterator<Item = T> + 'a
     where
-        I: Iterator<Item = u16> + 'a,
+        I: Iterator<Item = T> + 'a,
+        T: Default + Copy + Default + 'static,
     {
-        return ScalerIterator::<'a, IN_HEIGHT, IN_WIDTH, OUT_HEIGHT, OUT_WIDTH, I>::new(
+        return ScalerIterator::<'a, T, IN_HEIGHT, IN_WIDTH, OUT_HEIGHT, OUT_WIDTH, I>::new(
             iterator,
             &self.width_ceil_calcs,
             &self.height_ceil_calcs,
@@ -40,11 +41,12 @@ impl<
 
 struct ScalerIterator<
     'a,
+    T,
     const IN_HEIGHT: usize,
     const IN_WIDTH: usize,
     const OUT_HEIGHT: usize,
     const OUT_WIDTH: usize,
-    I: Iterator<Item = u16>,
+    I: Iterator<Item = T>,
 > {
     iterator: I,
     input_current_scan_line: u16,
@@ -58,21 +60,23 @@ struct ScalerIterator<
 
 impl<
         'a,
+        T,
         const IN_HEIGHT: usize,
         const IN_WIDTH: usize,
         const OUT_HEIGHT: usize,
         const OUT_WIDTH: usize,
         I,
-    > ScalerIterator<'a, IN_HEIGHT, IN_WIDTH, OUT_HEIGHT, OUT_WIDTH, I>
+    > ScalerIterator<'a, T, IN_HEIGHT, IN_WIDTH, OUT_HEIGHT, OUT_WIDTH, I>
 where
-    I: Iterator<Item = u16>,
+    I: Iterator<Item = T>,
+    T: Default + Copy,
 {
     pub fn new(iterator: I, width_ceil_calcs: &'a [u16], height_ceil_calcs: &'a [u16]) -> Self {
         Self {
             iterator: iterator,
             input_current_scan_line: 0,
             output_current_scan_line: 0,
-            scaled_scan_line_buffer: alloc::vec![0; OUT_WIDTH],
+            scaled_scan_line_buffer: alloc::vec![T::default(); OUT_WIDTH],
             scaled_line_buffer_repeat: 0,
             current_scaled_line_index: 0,
             width_ceil_calcs,
@@ -83,16 +87,18 @@ where
 
 impl<
         'a,
+        T,
         I,
         const IN_HEIGHT: usize,
         const IN_WIDTH: usize,
         const OUT_HEIGHT: usize,
         const OUT_WIDTH: usize,
-    > Iterator for ScalerIterator<'a, IN_HEIGHT, IN_WIDTH, OUT_HEIGHT, OUT_WIDTH, I>
+    > Iterator for ScalerIterator<'a, T, IN_HEIGHT, IN_WIDTH, OUT_HEIGHT, OUT_WIDTH, I>
 where
-    I: Iterator<Item = u16>,
+    I: Iterator<Item = T>,
+    T: Copy,
 {
-    type Item = u16;
+    type Item = T;
     //#[unroll::unroll_for_loops]
     fn next(&mut self) -> Option<Self::Item> {
         loop {

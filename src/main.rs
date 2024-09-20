@@ -51,7 +51,7 @@ fn main() -> ! {
         static mut HEAP: [MaybeUninit<u8>; HEAP_SIZE] = [MaybeUninit::uninit(); HEAP_SIZE];
         unsafe { ALLOCATOR.init(HEAP.as_ptr() as usize, HEAP_SIZE) }
     }
-
+    info!("--------------------");
     info!("Program start");
     let mut pac = pac::Peripherals::take().unwrap();
     let mut watchdog = Watchdog::new(pac.WATCHDOG);
@@ -208,9 +208,10 @@ fn main() -> ! {
                 (SCREEN_WIDTH - 1) as u16,
                 |iface| {
                     iface.transfer_16bit_mode(|sm| {
-                        streamer.stream::<_, _>(
+                        streamer.stream::<_, _, _, _, 1>(
                             sm,
                             &mut scaler.scale_iterator(GameVideoIter::new(&mut gameboy)),
+                            |d| [d],
                         )
                     })
                 },

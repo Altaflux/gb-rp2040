@@ -1,26 +1,27 @@
+use crate::array_scaler::ScreenHandler;
 use crate::hal::dma::WriteTarget;
 
+use crate::dma_transfer;
 use crate::rp_hal::hal;
+use embedded_dma::Word;
 use hal::dma::SingleChannel;
 
-use crate::array_scaler::ScreenHandler;
-use crate::dma_transfer;
-use embedded_dma::Word;
-pub struct Streamer<T, CH>
-where
-    T: 'static,
-{
+pub struct Streamer<CH, DO: 'static> {
     dma_channel: Option<CH>,
-    spare_buffer: Option<&'static mut [T]>,
-    main_buffer: Option<&'static mut [T]>,
+    spare_buffer: Option<&'static mut [DO]>,
+    main_buffer: Option<&'static mut [DO]>,
 }
 
-impl<T, CH> Streamer<T, CH>
+impl<CH, DO: 'static> Streamer<CH, DO>
 where
-    T: Word,
     CH: SingleChannel,
+    DO: Word,
 {
-    pub fn new(channel: CH, spare_buffer: &'static mut [T], main_buffer: &'static mut [T]) -> Self {
+    pub fn new(
+        channel: CH,
+        spare_buffer: &'static mut [DO],
+        main_buffer: &'static mut [DO],
+    ) -> Self {
         Self {
             dma_channel: Some(channel),
             spare_buffer: Some(spare_buffer),
@@ -28,17 +29,24 @@ where
         }
     }
 
-    pub fn stream<I, TO>(&mut self, tx: TO, iterator: &mut I) -> TO
+    pub fn stream<I, TO, F, DI, const TS: usize>(
+        &mut self,
+        tx: TO,
+        iterator: &mut I,
+        transformer: F,
+    ) -> TO
     where
-        TO: WriteTarget<TransmittedWord = T>,
-        I: Iterator<Item = T>,
+        DO: Word + Copy,
+        TO: WriteTarget<TransmittedWord = DO>,
+        I: Iterator<Item = DI>,
+        F: Fn(DI) -> [DO; TS],
     {
         let channel = core::mem::replace(&mut self.dma_channel, None).unwrap();
         let spare_buffer = core::mem::replace(&mut self.spare_buffer, None).unwrap();
         let main_buffer = core::mem::replace(&mut self.main_buffer, None).unwrap();
         let stream = dma_transfer::DmaTransfer::new(channel, tx, main_buffer);
 
-        let sh: ScreenHandler<T, _, _> = ScreenHandler::new(iterator, stream, spare_buffer);
+        let sh = ScreenHandler::new(iterator, stream, spare_buffer, transformer);
         let (stream, spare_buffer) = sh.compute_line();
 
         let (channel, sm, main_buffer) = stream.free();
