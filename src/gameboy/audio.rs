@@ -7,7 +7,7 @@ impl gb_core::hardware::sound::AudioPlayer for NullAudioPlayer {
 
     fn samples_rate(&self) -> u32 {
         // 4096 / 1
-        1098 / 1
+        5512
     }
 
     fn underflowed(&self) -> bool {
