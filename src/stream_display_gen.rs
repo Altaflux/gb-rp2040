@@ -1,3 +1,4 @@
+use crate::array_scaler::ScreenHandler;
 use crate::hal::dma::WriteTarget;
 
 use crate::dma_transfer;
@@ -47,6 +48,29 @@ where
         let stream = dma_transfer::DmaTransfer::new(channel, tx, main_buffer);
 
         let sh = SpiScreenHandler::new(iterator, stream, spare_buffer, transformer);
+        let (stream, spare_buffer) = sh.compute_line();
+
+        let (channel, sm, main_buffer) = stream.free();
+
+        self.main_buffer = Some(main_buffer);
+        self.spare_buffer = Some(spare_buffer);
+        self.dma_channel = Some(channel);
+
+        sm
+    }
+
+    pub fn stream_no_conversion<I, TO>(&mut self, tx: TO, iterator: &mut I) -> TO
+    where
+        DO: Word + Copy,
+        TO: WriteTarget<TransmittedWord = DO>,
+        I: Iterator<Item = DO>,
+    {
+        let channel = core::mem::replace(&mut self.dma_channel, None).unwrap();
+        let spare_buffer = core::mem::replace(&mut self.spare_buffer, None).unwrap();
+        let main_buffer = core::mem::replace(&mut self.main_buffer, None).unwrap();
+        let stream = dma_transfer::DmaTransfer::new(channel, tx, main_buffer);
+
+        let sh = ScreenHandler::new(iterator, stream, spare_buffer);
         let (stream, spare_buffer) = sh.compute_line();
 
         let (channel, sm, main_buffer) = stream.free();

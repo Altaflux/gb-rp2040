@@ -52,6 +52,13 @@ impl<BUS, CS, D> ExclusiveDevice<BUS, CS, D> {
         self.cs.set_high().unwrap();
         self
     }
+
+    pub fn share_bus2<F>(&mut self, mut callback: F)
+    where
+        F: FnMut(&mut BUS),
+    {
+        (callback)(&mut self.bus);
+    }
 }
 
 impl<BUS, CS> ExclusiveDevice<BUS, CS, super::NoDelay> {

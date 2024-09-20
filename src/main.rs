@@ -247,6 +247,7 @@ fn main() -> ! {
                 (SCREEN_HEIGHT - 1) as u16,
                 (SCREEN_WIDTH - 1) as u16,
                 |iface| {
+                    ///////////////////////////////////////////////////////////////
                     // let (mut sp, dc) = iface.release();
                     // sp = sp.share_bus(|bus| {
                     //     streamer.stream::<_, _, _, _, 2>(
@@ -256,14 +257,21 @@ fn main() -> ! {
                     //     )
                     // });
                     // display_interface_spi::SPIInterface::new(sp, dc)
+                    //////////////////////////////////////////////////////////////
                     iface.transfer_16bit_mode(|sm| {
                         streamer.stream::<_, _, _, _, 1>(
                             sm,
                             &mut scaler.scale_iterator(GameVideoIter::new(&mut gameboy)),
-                            // |d| d.to_be_bytes(),
                             |d| [d],
                         )
                     })
+                    ///////////////////////////////////////////////////////////////
+                    // iface.transfer_16bit_mode(|sm| {
+                    //     streamer.stream_no_conversion::<_, _>(
+                    //         sm,
+                    //         &mut scaler.scale_iterator(GameVideoIter::new(&mut gameboy)),
+                    //     )
+                    // })
                 },
             )
             .unwrap();
