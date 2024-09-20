@@ -33,8 +33,6 @@ where
         let mut transfer = self.line_transfer;
 
         let mut buffer = self.scaled_scan_line_buffer;
-        // AsByteSlice::as_byte_slice(buffer);
-
         let mut width_position = 0;
         for pixel in self.iterator {
             buffer[width_position] = pixel;

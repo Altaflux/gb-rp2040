@@ -35,6 +35,7 @@ use hal::{clocks::init_clocks_and_plls, pac, sio::Sio, spi, watchdog::Watchdog};
 
 use gb_core::gameboy::GameBoy;
 mod array_scaler;
+mod clocks;
 mod dma_transfer;
 mod gameboy;
 mod pio_interface;
@@ -58,7 +59,7 @@ fn main() -> ! {
         static mut HEAP: [MaybeUninit<u8>; HEAP_SIZE] = [MaybeUninit::uninit(); HEAP_SIZE];
         unsafe { ALLOCATOR.init(HEAP.as_ptr() as usize, HEAP_SIZE) }
     }
-
+    info!("--------------------------");
     info!("Program start");
     let mut pac = pac::Peripherals::take().unwrap();
     let mut watchdog = Watchdog::new(pac.WATCHDOG);
@@ -70,18 +71,26 @@ fn main() -> ! {
         .write(|w| unsafe { w.vsel().bits(0b1101) });
     // External high-speed crystal on the pico board is 12Mhz
     let external_xtal_freq_hz = 12_000_000u32;
-    let clocks = init_clocks_and_plls(
-        external_xtal_freq_hz,
+    // let clocks = init_clocks_and_plls(
+    //     external_xtal_freq_hz,
+    //     pac.XOSC,
+    //     pac.CLOCKS,
+    //     pac.PLL_SYS,
+    //     pac.PLL_USB,
+    //     &mut pac.RESETS,
+    //     &mut watchdog,
+    // )
+    // .ok()
+    // .unwrap();
+
+    let clocks = clocks::configure_overclock(
         pac.XOSC,
         pac.CLOCKS,
         pac.PLL_SYS,
         pac.PLL_USB,
         &mut pac.RESETS,
         &mut watchdog,
-    )
-    .ok()
-    .unwrap();
-
+    );
     let mut timer = rp2040_hal::Timer::new(pac.TIMER, &mut pac.RESETS, &clocks);
 
     let pins = hal::gpio::Pins::new(
@@ -189,7 +198,7 @@ fn main() -> ! {
         pio_interface::PioInterface::new(3, rs, &mut pio, sm0, rw.id().num, (3, 10), endianess);
 
     let mut display = ili9341::Ili9341::new_orig(
-        spi_display_interface,
+        interface,
         reset,
         &mut timer,
         ili9341::Orientation::Landscape,
@@ -214,13 +223,13 @@ fn main() -> ! {
     const SCREEN_HEIGHT: usize =
         (<DisplaySize240x320 as DisplaySize>::HEIGHT as f32 / 1.0f32) as usize;
 
-    let spare: &'static mut [u8] =
-        cortex_m::singleton!(: Vec<u8>  = alloc::vec![0; SCREEN_WIDTH  ])
+    let spare: &'static mut [u16] =
+        cortex_m::singleton!(: Vec<u16>  = alloc::vec![0; SCREEN_WIDTH * 2  ])
             .unwrap()
             .as_mut_slice();
 
-    let dm_spare: &'static mut [u8] =
-        cortex_m::singleton!(: Vec<u8>  = alloc::vec![0; SCREEN_WIDTH ])
+    let dm_spare: &'static mut [u16] =
+        cortex_m::singleton!(: Vec<u16>  = alloc::vec![0; SCREEN_WIDTH * 2 ])
             .unwrap()
             .as_mut_slice();
 
@@ -238,15 +247,23 @@ fn main() -> ! {
                 (SCREEN_HEIGHT - 1) as u16,
                 (SCREEN_WIDTH - 1) as u16,
                 |iface| {
-                    let (mut sp, dc) = iface.release();
-                    sp = sp.share_bus(|bus| {
-                        streamer.stream::<_, _, _, _, 2>(
-                            bus,
+                    // let (mut sp, dc) = iface.release();
+                    // sp = sp.share_bus(|bus| {
+                    //     streamer.stream::<_, _, _, _, 2>(
+                    //         bus,
+                    //         &mut scaler.scale_iterator(GameVideoIter::new(&mut gameboy)),
+                    //         |d| d.to_be_bytes(),
+                    //     )
+                    // });
+                    // display_interface_spi::SPIInterface::new(sp, dc)
+                    iface.transfer_16bit_mode(|sm| {
+                        streamer.stream::<_, _, _, _, 1>(
+                            sm,
                             &mut scaler.scale_iterator(GameVideoIter::new(&mut gameboy)),
-                            |d| d.to_be_bytes(),
+                            // |d| d.to_be_bytes(),
+                            |d| [d],
                         )
-                    });
-                    display_interface_spi::SPIInterface::new(sp, dc)
+                    })
                 },
             )
             .unwrap();
