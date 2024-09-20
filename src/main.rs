@@ -3,7 +3,7 @@
 //! This will blink an LED attached to GP25, which is the pin the Pico uses for the on-board LED.
 #![no_std]
 #![no_main]
-
+//#![feature(generic_const_exprs)]
 use core::borrow::BorrowMut;
 use core::u16;
 
@@ -240,9 +240,10 @@ fn main() -> ! {
                 |iface| {
                     let (mut sp, dc) = iface.release();
                     sp = sp.share_bus(|bus| {
-                        streamer.stream::<_, _>(
+                        streamer.stream::<_, _, _, _, 2>(
                             bus,
                             &mut scaler.scale_iterator(GameVideoIter::new(&mut gameboy)),
+                            |d| d.to_be_bytes(),
                         )
                     });
                     display_interface_spi::SPIInterface::new(sp, dc)
