@@ -62,8 +62,8 @@ fn main() -> ! {
     //  hal::clocks::RtcClock::
     pac.VREG_AND_CHIP_RESET
         .vreg()
-        .write(|w| unsafe { w.vsel().bits(0b1101) });
-    // External high-speed crystal on the pico board is 12Mhz
+        .write(|w| unsafe { w.vsel().bits(0b1110) }); // 1.25v
+                                                      // External high-speed crystal on the pico board is 12Mhz
     let external_xtal_freq_hz = 12_000_000u32;
     let clocks = clocks::configure_overclock(
         external_xtal_freq_hz,

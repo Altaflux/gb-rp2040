@@ -35,6 +35,14 @@ pub const PLL_SYS_288MHZ: hal::pll::PLLConfig = hal::pll::PLLConfig {
     post_div2: 1,
 };
 
+//FAILS
+pub const PLL_SYS_308MHZ: hal::pll::PLLConfig = hal::pll::PLLConfig {
+    vco_freq: fugit::HertzU32::Hz(924000000),
+    refdiv: 1,
+    post_div1: 3,
+    post_div2: 1,
+};
+
 pub fn configure_overclock(
     xosc_crystal_freq: u32,
     xosc_dev: pac::XOSC,
