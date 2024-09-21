@@ -34,6 +34,7 @@ mod array_scaler;
 mod clocks;
 mod dma_transfer;
 mod gameboy;
+mod i2s;
 mod pio_interface;
 mod rp_hal;
 mod scaler;

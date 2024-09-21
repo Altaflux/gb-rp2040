@@ -7,7 +7,6 @@ use hal::pio::{Running, StateMachine, StateMachineIndex, Tx};
 use hal::pio::{Rx, UninitStateMachine};
 type Result = core::result::Result<(), DisplayError>;
 use hal::dma::Byte;
-
 pub struct PioInterface<RS, P: PIOExt, SM: StateMachineIndex, END> {
     sm: StateMachine<(P, SM), Running>,
     tx: Tx<(P, SM), HalfWord>,
@@ -53,11 +52,10 @@ where
         );
 
         let video_program_installed = pio.install(&video_program.program).unwrap();
-
         let program_offset = video_program_installed.offset();
         let (mut video_sm, rx, vid_tx) =
             hal::pio::PIOBuilder::from_installed_program(video_program_installed)
-                .out_pins(pins.0, pins.1)
+                .out_pins(pins.0, (1 - pins.0) + pins.1)
                 .side_set_pin_base(rw)
                 .out_shift_direction(hal::pio::ShiftDirection::Left)
                 .in_shift_direction(hal::pio::ShiftDirection::Left)
