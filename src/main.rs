@@ -9,7 +9,6 @@ use alloc::vec::Vec;
 use defmt::*;
 use defmt_rtt as _;
 
-use embedded_hal::digital::OutputPin;
 use embedded_sdmmc::{SdCard, VolumeManager};
 use gameboy::display::{GameVideoIter, GameboyLineBufferDisplay};
 use ili9341::{DisplaySize, DisplaySize240x320};
@@ -32,6 +31,7 @@ use hal::{clocks::init_clocks_and_plls, pac, sio::Sio, spi, watchdog::Watchdog};
 use gb_core::gameboy::GameBoy;
 use util::DummyOutputPin;
 mod array_scaler;
+mod clocks;
 mod dma_transfer;
 mod gameboy;
 mod pio_interface;
@@ -65,7 +65,7 @@ fn main() -> ! {
         .write(|w| unsafe { w.vsel().bits(0b1101) });
     // External high-speed crystal on the pico board is 12Mhz
     let external_xtal_freq_hz = 12_000_000u32;
-    let clocks = init_clocks_and_plls(
+    let clocks = clocks::configure_overclock(
         external_xtal_freq_hz,
         pac.XOSC,
         pac.CLOCKS,
