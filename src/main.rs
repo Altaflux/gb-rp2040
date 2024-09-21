@@ -30,6 +30,7 @@ use embedded_alloc::Heap;
 use hal::{clocks::init_clocks_and_plls, pac, sio::Sio, spi, watchdog::Watchdog};
 
 use gb_core::gameboy::GameBoy;
+use util::DummyOutputPin;
 mod array_scaler;
 mod dma_transfer;
 mod gameboy;
@@ -38,6 +39,7 @@ mod rp_hal;
 mod scaler;
 mod sdcard;
 mod stream_display;
+mod util;
 //
 
 #[global_allocator]
@@ -93,11 +95,9 @@ fn main() -> ! {
     // LED to one of the GPIO pins, and reference that pin here. Don't forget adding an appropriate resistor
     // in series with the LED.
     //let mut led_pin = pins.led.into_push_pull_output();
-    let reset = pins.gpio2.into_push_pull_output();
-    let mut cs = pins.gpio27.into_push_pull_output();
+
     let rs = pins.gpio28.into_push_pull_output();
-    let rw = pins.gpio22.into_function::<hal::gpio::FunctionPio0>();
-    let mut rd = pins.gpio26.into_push_pull_output();
+    let rw = pins.gpio27.into_function::<hal::gpio::FunctionPio0>();
 
     let _ = pins.gpio3.into_function::<hal::gpio::FunctionPio0>();
     let _ = pins.gpio4.into_function::<hal::gpio::FunctionPio0>();
@@ -109,8 +109,6 @@ fn main() -> ! {
     let _ = pins.gpio10.into_function::<hal::gpio::FunctionPio0>();
 
     let (mut pio, sm0, _, _, _) = pac.PIO0.split(&mut pac.RESETS);
-    rd.set_high().unwrap();
-    cs.set_low().unwrap();
 
     ///////////////////////////////SD CARD
     let spi_sclk: hal::gpio::Pin<_, _, hal::gpio::PullDown> =
@@ -159,7 +157,7 @@ fn main() -> ! {
 
     let mut display = ili9341::Ili9341::new_orig(
         interface,
-        reset,
+        DummyOutputPin,
         &mut timer,
         ili9341::Orientation::Landscape,
         ili9341::DisplaySize240x320,
