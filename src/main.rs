@@ -18,7 +18,7 @@ use hal::fugit::RateExtU32;
 use rp2040_hal::dma::DMAExt;
 use rp2040_hal::{self as hal, pio::PIOExt};
 use rp2040_hal::{entry, Clock};
-
+#[allow(unused_imports)]
 use rp_pico;
 extern crate alloc;
 // Provide an alias for our BSP so we can switch targets quickly.
