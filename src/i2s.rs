@@ -10,14 +10,17 @@ type Result = core::result::Result<(), DisplayError>;
 use embedded_dma::{ReadBuffer, Word};
 use hal::dma::single_buffer::{Config, Transfer};
 use hal::dma::Byte;
+use hal::dma::HalfWord;
 use hal::dma::SingleChannel;
 use hal::dma::{ReadTarget, WriteTarget};
-use rp2040_hal::dma::HalfWord;
 
-type ToType<P, SM> = Tx<(P, SM), rp2040_hal::dma::HalfWord>;
+// use defmt::*;
+// use defmt_rtt as _;
+
+type ToType<P, SM> = Tx<(P, SM), hal::dma::Word>;
 enum DmaState<
     CH: SingleChannel,
-    FROM: ReadTarget<ReceivedWord = u16>,
+    FROM: ReadTarget<ReceivedWord = u32>,
     P: PIOExt,
     SM: StateMachineIndex,
 > {
@@ -37,39 +40,39 @@ where
 {
     pub fn new(
         channel: CH,
-        clock_divider: u16,
+        clock_divider: (u16, u8),
         pio: &mut PIO<P>,
         sm: UninitStateMachine<(P, SM)>,
         clock_pin: (u8, u8),
-        pins: (u8, u8),
-        buffer: &'static mut [u16],
-    ) -> ()
+        data_pin: u8,
+        buffer: &'static mut [u32],
+    ) -> Self
     where
         P: PIOExt,
         SM: StateMachineIndex,
     {
+        //info!("With clock divider of: {}", clock_divider);
         let audio_program = pio_proc::pio_file!("src/audio_i2s.pio");
 
         let video_program_installed = pio.install(&audio_program.program).unwrap();
         let program_offset = video_program_installed.offset();
 
-        let (mut video_sm, rx, mut vid_tx) =
+        let (mut video_sm, rx, vid_tx) =
             hal::pio::PIOBuilder::from_installed_program(video_program_installed)
-                .out_pins(pins.0, (1 - pins.0) + pins.1)
+                .out_pins(data_pin, 1)
                 .side_set_pin_base(clock_pin.0)
                 .out_shift_direction(hal::pio::ShiftDirection::Left)
                 .autopull(true)
                 .pull_threshold(32)
                 .buffers(hal::pio::Buffers::OnlyTx)
-                .clock_divisor_fixed_point(clock_divider, 0)
+                .clock_divisor_fixed_point(clock_divider.0, clock_divider.1)
                 .build(sm);
-        video_sm.set_pindirs((pins.0..pins.1 + 1 as u8).map(|n| (n, hal::pio::PinDir::Output)));
+        video_sm.set_pindirs((data_pin..data_pin + 1 as u8).map(|n| (n, hal::pio::PinDir::Output)));
         video_sm.set_pindirs(
             (clock_pin.0..clock_pin.1 + 1 as u8).map(|n| (n, hal::pio::PinDir::Output)),
         );
         let mut sm = video_sm.start();
-        let to_dest: Tx<(P, SM), rp2040_hal::dma::HalfWord> =
-            vid_tx.transfer_size(hal::dma::HalfWord);
+        let to_dest = vid_tx.transfer_size(hal::dma::Word);
 
         let instruction = pio::Instruction {
             operands: pio::InstructionOperands::JMP {
@@ -77,16 +80,17 @@ where
                 address: program_offset + audio_program.public_defines.entry_point as u8,
             },
             delay: 0,
-            side_set: None,
+            side_set: Some(0b00),
         };
         sm.exec_instruction(instruction);
         Self {
             dma_state: Some(DmaState::IDLE(
                 channel,
                 LimitingArrayReadTarget::new(buffer, buffer.len() as u32),
+                // buffer,
                 to_dest,
             )),
-        };
+        }
     }
 
     // #[allow(dead_code)]
@@ -110,14 +114,25 @@ where
             DmaState::RUNNING(dma) => dma.wait(),
         };
         let output = audio_buffer.new_max_read(output_buffer.len() as u32);
-        for (i, v) in output_buffer.iter().enumerate() {
-            let clamped = (*v).max(-1.0).min(1.0);
-            let clamp = (clamped * i16::MAX as f32) as i16;
-            output.array[i] = clamp as u16;
+
+        for (i, v) in output_buffer.chunks(2).enumerate() {
+            // if v.len() == 1 {
+            //     info!(
+            //         "ABout to audio panic!: output_buffer size{}",
+            //         output_buffer.len()
+            //     );
+            // }
+            let a1 = v[0];
+            let a2 = v[1];
+
+            let clamp1 = convert_sampling(a1) as u16;
+            let clamp2 = convert_sampling(a2) as u16;
+            let combined = combine_u16_to_u32(clamp1, clamp2);
+
+            output.array[i] = combined;
         }
 
         let sbc = Config::new(ch, output, tx).start();
-
         self.dma_state = Some(DmaState::RUNNING(sbc));
     }
 
@@ -137,12 +152,12 @@ where
 }
 
 struct LimitingArrayReadTarget {
-    array: &'static mut [u16],
+    array: &'static mut [u32],
     max_read: u32,
 }
 
 impl LimitingArrayReadTarget {
-    fn new(array: &'static mut [u16], max_read: u32) -> Self {
+    fn new(array: &'static mut [u32], max_read: u32) -> Self {
         Self { array, max_read }
     }
 
@@ -153,9 +168,17 @@ impl LimitingArrayReadTarget {
         }
     }
 }
-
+fn convert_sampling(i: f32) -> i16 {
+    let clamped = (i).max(-1.0).min(1.0);
+    let clamp = (clamped * i16::MAX as f32) as i16;
+    clamp
+}
+fn combine_u16_to_u32(high: u16, low: u16) -> u32 {
+    // Shift the high value to the left by 16 bits and combine with low
+    ((high as u32) << 16) | (low as u32)
+}
 unsafe impl ReadTarget for LimitingArrayReadTarget {
-    type ReceivedWord = u16;
+    type ReceivedWord = u32;
 
     fn rx_treq() -> Option<u8> {
         None

@@ -11,6 +11,7 @@ use defmt_rtt as _;
 
 use embedded_sdmmc::{SdCard, VolumeManager};
 use gameboy::display::{GameVideoIter, GameboyLineBufferDisplay};
+use i2s::I2sPioInterface;
 use ili9341::{DisplaySize, DisplaySize240x320};
 use panic_probe as _;
 
@@ -18,8 +19,8 @@ use hal::fugit::RateExtU32;
 use rp2040_hal::dma::DMAExt;
 use rp2040_hal::{self as hal, pio::PIOExt};
 use rp2040_hal::{entry, Clock};
-#[allow(unused_imports)]
-use rp_pico;
+//#[allow(unused_imports)]
+//use rp_pico;
 extern crate alloc;
 // Provide an alias for our BSP so we can switch targets quickly.
 // Uncomment the BSP you included in Cargo.toml, the rest of the code does not need to change.
@@ -42,6 +43,11 @@ mod sdcard;
 mod stream_display;
 mod util;
 //
+
+#[link_section = ".boot2"]
+#[no_mangle]
+#[used]
+pub static BOOT2_FIRMWARE: [u8; 256] = rp2040_boot2::BOOT_LOADER_W25Q080;
 
 #[global_allocator]
 static ALLOCATOR: Heap = Heap::empty();
@@ -109,7 +115,9 @@ fn main() -> ! {
     let _ = pins.gpio9.into_function::<hal::gpio::FunctionPio0>();
     let _ = pins.gpio10.into_function::<hal::gpio::FunctionPio0>();
 
-    let (mut pio, sm0, _, _, _) = pac.PIO0.split(&mut pac.RESETS);
+    let (mut pio_0, sm0_0, _, _, _) = pac.PIO0.split(&mut pac.RESETS);
+
+    let (mut pio_1, sm_1_0, _, _, _) = pac.PIO1.split(&mut pac.RESETS);
 
     ///////////////////////////////SD CARD
     let spi_sclk: hal::gpio::Pin<_, _, hal::gpio::PullDown> =
@@ -146,7 +154,7 @@ fn main() -> ! {
     boot_rom_file.close().unwrap();
 
     let rom_file = root_dir
-        .open_file_in_dir("sml.gb", embedded_sdmmc::Mode::ReadOnly)
+        .open_file_in_dir("tetris.gb", embedded_sdmmc::Mode::ReadOnly)
         .unwrap();
 
     let roms = gameboy::rom::SdRomManager::new(rom_file);
@@ -154,7 +162,7 @@ fn main() -> ! {
     let cartridge = gb_rom.into_cartridge();
     ///////////////////////////////
     let interface =
-        pio_interface::PioInterface::new(3, rs, &mut pio, sm0, rw.id().num, (3, 10), endianess);
+        pio_interface::PioInterface::new(3, rs, &mut pio_0, sm0_0, rw.id().num, (3, 10), endianess);
 
     let mut display = ili9341::Ili9341::new_orig(
         interface,
@@ -169,13 +177,29 @@ fn main() -> ! {
         gb_core::hardware::boot_rom::BootromData::from_bytes(&*boot_rom_data),
     ));
     core::mem::drop(boot_rom_data);
-    let screen = GameboyLineBufferDisplay::new();
-    let mut gameboy = GameBoy::create(
-        screen,
-        cartridge,
-        boot_rom,
-        Box::new(gameboy::audio::NullAudioPlayer),
+    let dma = pac.DMA.split(&mut pac.RESETS);
+    //////////////////////AUDIO SETUP
+    let clock_divider: u32 = 288_000_000 * 4 / 5512;
+    let _ = pins.gpio20.into_function::<hal::gpio::FunctionPio1>();
+    let _ = pins.gpio21.into_function::<hal::gpio::FunctionPio1>();
+    let _ = pins.gpio22.into_function::<hal::gpio::FunctionPio1>();
+    let audio_buffer: &'static mut [u32] =
+        cortex_m::singleton!(: Vec<u32>  = alloc::vec![0; 4000  ])
+            .unwrap()
+            .as_mut_slice();
+    let i2s_interface = I2sPioInterface::new(
+        dma.ch1,
+        // ((clock_divider >> 8) as u16, (clock_divider & 0xFF) as u8),
+        (102 as u16, 10 as u8),
+        &mut pio_1,
+        sm_1_0,
+        (21, 22),
+        20,
+        audio_buffer,
     );
+    //////////////////////
+    let screen = GameboyLineBufferDisplay::new();
+    let mut gameboy = GameBoy::create(screen, cartridge, boot_rom, Box::new(i2s_interface));
 
     const SCREEN_WIDTH: usize =
         (<DisplaySize240x320 as DisplaySize>::WIDTH as f32 / 1.0f32) as usize;
@@ -192,7 +216,6 @@ fn main() -> ! {
             .unwrap()
             .as_mut_slice();
 
-    let dma = pac.DMA.split(&mut pac.RESETS);
     let mut streamer = stream_display::Streamer::new(dma.ch0, dm_spare, spare);
     let scaler: scaler::ScreenScaler<144, 160, { SCREEN_WIDTH }, { SCREEN_HEIGHT }> =
         scaler::ScreenScaler::new();
