@@ -61,7 +61,7 @@ pub fn configure_overclock(
     let pll_sys = hal::pll::setup_pll_blocking(
         pll_sys_dev,
         xosc.operating_frequency(),
-        PLL_SYS_288MHZ,
+        PLL_SYS_308MHZ,
         &mut clocks,
         resets,
     )

@@ -19,8 +19,8 @@ use hal::fugit::RateExtU32;
 use rp2040_hal::dma::DMAExt;
 use rp2040_hal::{self as hal, pio::PIOExt};
 use rp2040_hal::{entry, Clock};
-//#[allow(unused_imports)]
-//use rp_pico;
+// #[allow(unused_imports)]
+// use rp_pico;
 extern crate alloc;
 // Provide an alias for our BSP so we can switch targets quickly.
 // Uncomment the BSP you included in Cargo.toml, the rest of the code does not need to change.
@@ -56,7 +56,7 @@ static ALLOCATOR: Heap = Heap::empty();
 fn main() -> ! {
     {
         use core::mem::MaybeUninit;
-        const HEAP_SIZE: usize = 203000;
+        const HEAP_SIZE: usize = 183000;
         static mut HEAP: [MaybeUninit<u8>; HEAP_SIZE] = [MaybeUninit::uninit(); HEAP_SIZE];
         unsafe { ALLOCATOR.init(HEAP.as_ptr() as usize, HEAP_SIZE) }
     }
@@ -190,7 +190,7 @@ fn main() -> ! {
     let i2s_interface = I2sPioInterface::new(
         dma.ch1,
         // ((clock_divider >> 8) as u16, (clock_divider & 0xFF) as u8),
-        (302 as u16, 10 as u8),
+        (700 as u16, 10 as u8),
         &mut pio_1,
         sm_1_0,
         (21, 22),
@@ -217,27 +217,21 @@ fn main() -> ! {
             .as_mut_slice();
 
     let mut streamer = stream_display::Streamer::new(dma.ch0, dm_spare, spare);
-    let scaler: scaler::ScreenScaler<144, 160, { SCREEN_WIDTH }, { SCREEN_HEIGHT }> =
-        scaler::ScreenScaler::new();
+    // let scaler: scaler::ScreenScaler<144, 160, { SCREEN_WIDTH }, { SCREEN_HEIGHT }> =
+    //     scaler::ScreenScaler::new();
 
     loop {
         let start_time = timer.get_counter();
         display = display
-            .async_transfer_mode(
-                0,
-                0,
-                (SCREEN_HEIGHT - 1) as u16,
-                (SCREEN_WIDTH - 1) as u16,
-                |iface| {
-                    iface.transfer_16bit_mode(|sm| {
-                        streamer.stream::<_, _, _, _, 1>(
-                            sm,
-                            &mut scaler.scale_iterator(GameVideoIter::new(&mut gameboy)),
-                            |d| [d],
-                        )
-                    })
-                },
-            )
+            .async_transfer_mode(0, 0, (160 - 1) as u16, (144 - 1) as u16, |iface| {
+                iface.transfer_16bit_mode(|sm| {
+                    streamer.stream::<_, _, _, _, 1>(
+                        sm,
+                        &mut (GameVideoIter::new(&mut gameboy)),
+                        |d| [d],
+                    )
+                })
+            })
             .unwrap();
 
         let end_time = timer.get_counter();

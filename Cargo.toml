@@ -16,6 +16,7 @@ panic-probe = { version = "0.3", features = ["print-defmt"] }
 # We're using a Pico by default on this template
 rp2040-hal = { path = "C:\\Users\\pablo\\projects\\rp-hal\\rp2040-hal" }
 rp-pico = { version = "0.9", default-features = false, features = [
+
     "rt",
     "critical-section-impl",
     "rom-func-cache",
@@ -44,7 +45,8 @@ embedded-hal-bus = { version = "0.2.0", features = ["defmt-03"] }
 # Should be fixed in e-h-b 0.3 via https://github.com/rust-embedded/embedded-hal/pull/607
 portable-atomic = { version = "1.7.0", features = ["critical-section"] }
 ##
-rp2040-boot2 = { version = "0.3" }
+rp2040-boot2 = { version = "0.2.1" }
+##rp2040-boot2 = { version = "0.3.0" }
 [patch.crates-io]
 rp2040-hal = { path = "C:\\Users\\pablo\\projects\\rp-hal\\rp2040-hal" }
 # but you can use any BSP. Uncomment this to use the pro_micro_rp2040 BSP instead
