@@ -190,7 +190,7 @@ fn main() -> ! {
     let i2s_interface = I2sPioInterface::new(
         dma.ch1,
         // ((clock_divider >> 8) as u16, (clock_divider & 0xFF) as u8),
-        (102 as u16, 10 as u8),
+        (302 as u16, 10 as u8),
         &mut pio_1,
         sm_1_0,
         (21, 22),
