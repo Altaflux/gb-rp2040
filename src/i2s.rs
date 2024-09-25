@@ -1,7 +1,11 @@
 use crate::rp_hal::hal;
+use alloc::boxed::Box;
+use defmt::info;
 use display_interface::{DataFormat, DisplayError, WriteOnlyDataCommand};
 use embedded_hal::digital::OutputPin;
 
+use fon::chan::{Ch16, Ch32};
+use fon::{Audio, Frame};
 use hal::pio::{PIOExt, PIO};
 use hal::pio::{Running, StateMachine, StateMachineIndex, Tx};
 use hal::pio::{Rx, UninitStateMachine};
@@ -63,6 +67,7 @@ where
                 .side_set_pin_base(clock_pin.0)
                 .out_shift_direction(hal::pio::ShiftDirection::Left)
                 .autopull(true)
+                .out_sticky(true)
                 .pull_threshold(32)
                 .buffers(hal::pio::Buffers::OnlyTx)
                 .clock_divisor_fixed_point(clock_divider.0, clock_divider.1)
@@ -111,43 +116,45 @@ where
         let dma_state = core::mem::replace(&mut self.dma_state, None).unwrap();
         let (ch, audio_buffer, tx) = match dma_state {
             DmaState::IDLE(ch, buff, tx) => (ch, buff, tx),
-            DmaState::RUNNING(dma) => dma.wait(),
+            DmaState::RUNNING(dma) => dma.abort(),
         };
-        let output = audio_buffer.new_max_read(output_buffer.len() as u32);
+        let output = audio_buffer.new_max_read((output_buffer.len()) as u32);
 
         for (i, v) in output_buffer.chunks(2).enumerate() {
-            // if v.len() == 1 {
-            //     info!(
-            //         "ABout to audio panic!: output_buffer size{}",
-            //         output_buffer.len()
-            //     );
-            // }
-            let a1 = v[0];
-            let a2 = v[1];
-
-            let clamp1 = convert_sampling(a1) as u16;
-            let clamp2 = convert_sampling(a2) as u16;
-            let combined = combine_u16_to_u32(clamp1, clamp2);
-
+            let frame: fon::Frame<fon::chan::Ch16, 2> = fon::Frame::<_, 2>::new(
+                fon::chan::Ch16::from(Ch32::new(v[0])),
+                fon::chan::Ch16::from(Ch32::new(v[1])),
+            );
+            let channels = frame.channels();
+            let ch1: i16 = channels[0].into();
+            let ch2: i16 = channels[1].into();
+            let combined = combine_u16_to_u32(ch1 as u16, ch2 as u16);
             output.array[i] = combined;
         }
+        //info!("Array size:{}", output_buffer.len());
 
         let sbc = Config::new(ch, output, tx).start();
         self.dma_state = Some(DmaState::RUNNING(sbc));
     }
 
     fn samples_rate(&self) -> u32 {
+        //5512
         5512
     }
 
     fn underflowed(&self) -> bool {
-        match &self.dma_state {
+        let blocked = match &self.dma_state {
             Some(dma_state) => match dma_state {
                 DmaState::IDLE(..) => true,
                 DmaState::RUNNING(transfer) => transfer.is_done(),
             },
             None => false,
-        }
+        };
+        // if !blocked {
+        //     info!("Was blocked");
+        // }
+
+        true
     }
 }
 

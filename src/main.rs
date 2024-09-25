@@ -56,7 +56,8 @@ static ALLOCATOR: Heap = Heap::empty();
 fn main() -> ! {
     {
         use core::mem::MaybeUninit;
-        const HEAP_SIZE: usize = 183000;
+        const HEAP_SIZE: usize = 190000;
+        //const HEAP_SIZE: usize = 220000;
         static mut HEAP: [MaybeUninit<u8>; HEAP_SIZE] = [MaybeUninit::uninit(); HEAP_SIZE];
         unsafe { ALLOCATOR.init(HEAP.as_ptr() as usize, HEAP_SIZE) }
     }
@@ -120,6 +121,7 @@ fn main() -> ! {
     let (mut pio_1, sm_1_0, _, _, _) = pac.PIO1.split(&mut pac.RESETS);
 
     ///////////////////////////////SD CARD
+    /// ///
     let spi_sclk: hal::gpio::Pin<_, _, hal::gpio::PullDown> =
         pins.gpio18.into_function::<hal::gpio::FunctionSpi>();
     let spi_mosi: hal::gpio::Pin<_, _, hal::gpio::PullDown> =
@@ -184,13 +186,13 @@ fn main() -> ! {
     let _ = pins.gpio21.into_function::<hal::gpio::FunctionPio1>();
     let _ = pins.gpio22.into_function::<hal::gpio::FunctionPio1>();
     let audio_buffer: &'static mut [u32] =
-        cortex_m::singleton!(: Vec<u32>  = alloc::vec![0; 4000  ])
+        cortex_m::singleton!(: Vec<u32>  = alloc::vec![0; 4000 * 1  ])
             .unwrap()
             .as_mut_slice();
     let i2s_interface = I2sPioInterface::new(
         dma.ch1,
         // ((clock_divider >> 8) as u16, (clock_divider & 0xFF) as u8),
-        (700 as u16, 10 as u8),
+        (500 as u16, 0 as u8),
         &mut pio_1,
         sm_1_0,
         (21, 22),

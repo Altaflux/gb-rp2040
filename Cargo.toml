@@ -37,6 +37,7 @@ embedded-alloc = "0.5.1"
 num-traits = { version = "0.2.19", default-features = false, features = [
     "libm",
 ] }
+fon = "0.6.0"
 embedded-dma = "0.2.0"
 embedded-sdmmc = "0.8.0"
 const-lru = "1.0.0"
