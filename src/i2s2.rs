@@ -158,22 +158,12 @@ where
             DmaState::IDLE(transfer) => {
                 let second_buffer = core::mem::replace(&mut self.second_buffer, None).unwrap();
                 let second_buffer = Self::process_audio(output_buffer, second_buffer);
-                let kldf: DTransfer<
-                    CH1,
-                    CH2,
-                    LimitingArrayReadTarget,
-                    Tx<(P, SM)>,
-                    ReadNext<LimitingArrayReadTarget>,
-                > = transfer.read_next(second_buffer);
+                let kldf = transfer.read_next(second_buffer);
                 self.dma_state = Some(DmaState::RUNNING1(kldf));
             }
             DmaState::RUNNING1(transfer) => {
-                let dms: (
-                    LimitingArrayReadTarget,
-                    DTransfer<CH1, CH2, LimitingArrayReadTarget, Tx<(P, SM)>, ()>,
-                ) = transfer.wait();
-                let second_buffer = dms.0;
-                let second_buffer = Self::process_audio(output_buffer, second_buffer);
+                let dms = transfer.wait();
+                let second_buffer = Self::process_audio(output_buffer, dms.0);
                 let kldf = dms.1.read_next(second_buffer);
                 self.dma_state = Some(DmaState::RUNNING1(kldf));
             }
@@ -181,7 +171,6 @@ where
     }
 
     fn samples_rate(&self) -> u32 {
-        //5512
         5512
     }
 

@@ -12,6 +12,7 @@ use defmt_rtt as _;
 use embedded_sdmmc::{SdCard, VolumeManager};
 use gameboy::display::{GameVideoIter, GameboyLineBufferDisplay};
 use i2s::I2sPioInterface;
+use i2s2::I2sPioInterfaceDB;
 use ili9341::{DisplaySize, DisplaySize240x320};
 use panic_probe as _;
 
@@ -86,7 +87,7 @@ fn main() -> ! {
     .ok()
     .unwrap();
 
-    let mut timer = rp2040_hal::Timer::new(pac.TIMER, &mut pac.RESETS, &clocks);
+    let mut timer: rp2040_hal::Timer = rp2040_hal::Timer::new(pac.TIMER, &mut pac.RESETS, &clocks);
 
     let pins = hal::gpio::Pins::new(
         pac.IO_BANK0,
@@ -183,26 +184,38 @@ fn main() -> ! {
     let dma = pac.DMA.split(&mut pac.RESETS);
     //////////////////////AUDIO SETUP
     ///
-    let clock_divider: u32 = 288_000_000 * 4 / 5512;
+    let clock_divider: u32 = 351_000_000 * 1 / 5512;
+    let int_divider = (clock_divider >> 8) as u16;
+    let frak_divider = (clock_divider & 0xFF) as u8;
+    info!(
+        "Suggested dividers: int: {} frac: {}",
+        int_divider, frak_divider
+    );
     let _ = pins.gpio20.into_function::<hal::gpio::FunctionPio1>();
     let _ = pins.gpio21.into_function::<hal::gpio::FunctionPio1>();
     let _ = pins.gpio22.into_function::<hal::gpio::FunctionPio1>();
     let audio_buffer: &'static mut [u32] =
-        cortex_m::singleton!(: Vec<u32>  = alloc::vec![0; 4000 * 1  ])
+        cortex_m::singleton!(: Vec<u32>  = alloc::vec![0; 2000 * 1  ])
             .unwrap()
             .as_mut_slice();
-    let i2s_interface = I2sPioInterface::new(
+    let audio_buffer2: &'static mut [u32] =
+        cortex_m::singleton!(: Vec<u32>  = alloc::vec![0; 2000 * 1  ])
+            .unwrap()
+            .as_mut_slice();
+    let i2s_interface = I2sPioInterfaceDB::new(
         dma.ch1,
-        // ((clock_divider >> 8) as u16, (clock_divider & 0xFF) as u8),
-        (500 as u16, 0 as u8),
+        dma.ch2,
+        //(400 as u16, 0 as u8),
+        (248 as u16, 191 as u8),
         &mut pio_1,
         sm_1_0,
         (21, 22),
         20,
         audio_buffer,
+        audio_buffer2,
     );
     //////////////////////
-    let screen = GameboyLineBufferDisplay::new();
+    let screen = GameboyLineBufferDisplay::new(timer);
     let mut gameboy = GameBoy::create(screen, cartridge, boot_rom, Box::new(i2s_interface));
 
     const SCREEN_WIDTH: usize =
