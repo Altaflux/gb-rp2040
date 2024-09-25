@@ -36,6 +36,7 @@ mod clocks;
 mod dma_transfer;
 mod gameboy;
 mod i2s;
+mod i2s2;
 mod pio_interface;
 mod rp_hal;
 mod scaler;
@@ -181,6 +182,7 @@ fn main() -> ! {
     core::mem::drop(boot_rom_data);
     let dma = pac.DMA.split(&mut pac.RESETS);
     //////////////////////AUDIO SETUP
+    ///
     let clock_divider: u32 = 288_000_000 * 4 / 5512;
     let _ = pins.gpio20.into_function::<hal::gpio::FunctionPio1>();
     let _ = pins.gpio21.into_function::<hal::gpio::FunctionPio1>();
