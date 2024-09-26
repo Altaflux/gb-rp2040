@@ -33,7 +33,7 @@ enum DmaState<
     SM: StateMachineIndex,
 > {
     IDLE(DTransfer<CH1, CH2, FROM, ToType<P, SM>, ()>),
-    RUNNING1(DTransfer<CH1, CH2, FROM, ToType<P, SM>, ReadNext<FROM>>),
+    RUNNING(DTransfer<CH1, CH2, FROM, ToType<P, SM>, ReadNext<FROM>>),
 }
 
 pub struct I2sPioInterfaceDB<
@@ -159,13 +159,13 @@ where
                 let second_buffer = core::mem::replace(&mut self.second_buffer, None).unwrap();
                 let second_buffer = Self::process_audio(output_buffer, second_buffer);
                 let kldf = transfer.read_next(second_buffer);
-                self.dma_state = Some(DmaState::RUNNING1(kldf));
+                self.dma_state = Some(DmaState::RUNNING(kldf));
             }
-            DmaState::RUNNING1(transfer) => {
+            DmaState::RUNNING(transfer) => {
                 let dms = transfer.wait();
                 let second_buffer = Self::process_audio(output_buffer, dms.0);
                 let kldf = dms.1.read_next(second_buffer);
-                self.dma_state = Some(DmaState::RUNNING1(kldf));
+                self.dma_state = Some(DmaState::RUNNING(kldf));
             }
         };
     }
@@ -178,7 +178,7 @@ where
         let blocked = match &self.dma_state {
             Some(dma_state) => match dma_state {
                 DmaState::IDLE(..) => true,
-                DmaState::RUNNING1(transfer) => transfer.is_done(),
+                DmaState::RUNNING(transfer) => transfer.is_done(),
             },
             None => false,
         };

@@ -28,7 +28,7 @@ extern crate alloc;
 
 use embedded_alloc::Heap;
 
-use hal::{clocks::init_clocks_and_plls, pac, sio::Sio, spi, watchdog::Watchdog};
+use hal::{pac, sio::Sio, spi, watchdog::Watchdog};
 
 use gb_core::gameboy::GameBoy;
 use util::DummyOutputPin;
@@ -231,8 +231,8 @@ fn main() -> ! {
             .unwrap()
             .as_mut_slice();
     let i2s_interface = I2sPioInterfaceDB::new(
-        dma.ch1,
         dma.ch2,
+        dma.ch3,
         (400 as u16, 0 as u8),
         //(248 as u16, Z as u8),
         &mut pio_1,
@@ -252,16 +252,19 @@ fn main() -> ! {
         (<DisplaySize240x320 as DisplaySize>::HEIGHT as f32 / 1.0f32) as usize;
 
     let spare: &'static mut [u8] =
-        cortex_m::singleton!(: Vec<u8>  = alloc::vec![0; SCREEN_WIDTH  ])
+        cortex_m::singleton!(: Vec<u8>  = alloc::vec![0; SCREEN_WIDTH * 2 ])
             .unwrap()
             .as_mut_slice();
 
     let dm_spare: &'static mut [u8] =
-        cortex_m::singleton!(: Vec<u8>  = alloc::vec![0; SCREEN_WIDTH ])
+        cortex_m::singleton!(: Vec<u8>  = alloc::vec![0; SCREEN_WIDTH * 2 ])
             .unwrap()
             .as_mut_slice();
-
-    let mut streamer = stream_display::Streamer::new(dma.ch0, dm_spare, spare);
+    let dm_spare2: &'static mut [u8] =
+        cortex_m::singleton!(: Vec<u8>  = alloc::vec![0; SCREEN_WIDTH * 2 ])
+            .unwrap()
+            .as_mut_slice();
+    let mut streamer = stream_display::Streamer::new(dma.ch0, dma.ch1, dm_spare, spare, dm_spare2);
     let scaler: scaler::ScreenScaler<144, 160, { SCREEN_WIDTH }, { SCREEN_HEIGHT }> =
         scaler::ScreenScaler::new();
 
