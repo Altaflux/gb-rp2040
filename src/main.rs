@@ -42,6 +42,7 @@ mod pio_interface;
 mod rp_hal;
 mod scaler;
 mod sdcard;
+mod spi_device;
 mod stream_display;
 mod util;
 //
@@ -164,12 +165,39 @@ fn main() -> ! {
     let roms = gameboy::rom::SdRomManager::new(rom_file);
     let gb_rom = gb_core::hardware::rom::Rom::from_bytes(roms);
     let cartridge = gb_rom.into_cartridge();
+
+    ///////////////////////////////
+    let spi_sclk: hal::gpio::Pin<_, _, hal::gpio::PullDown> =
+        pins.gpio14.into_function::<hal::gpio::FunctionSpi>();
+    let spi_mosi: hal::gpio::Pin<_, _, hal::gpio::PullDown> =
+        pins.gpio15.into_function::<hal::gpio::FunctionSpi>(); //tx
+    let spi_miso: hal::gpio::Pin<_, _, hal::gpio::PullDown> =
+        pins.gpio12.into_function::<hal::gpio::FunctionSpi>(); //rx
+    let spi_screen = spi::Spi::<_, _, _, 8>::new(pac.SPI1, (spi_mosi, spi_miso, spi_sclk));
+    let screen_dc: hal::gpio::Pin<
+        hal::gpio::bank0::Gpio11,
+        hal::gpio::FunctionSio<hal::gpio::SioOutput>,
+        hal::gpio::PullDown,
+    > = pins.gpio11.into_push_pull_output();
+    let spi_screen = spi_screen.init(
+        &mut pac.RESETS,
+        clocks.peripheral_clock.freq(),
+        80.MHz(), // card initialization happens at low baud rate
+        embedded_hal::spi::MODE_0,
+    );
+
+    let exclusive_screen_spi =
+        spi_device::ExclusiveDevice::new(spi_screen, DummyOutputPin, timer).unwrap();
+    let spi_display_interface =
+        display_interface_spi::SPIInterface::new(exclusive_screen_spi, screen_dc);
+    /////////////
+
     ///////////////////////////////
     let interface =
         pio_interface::PioInterface::new(3, rs, &mut pio_0, sm0_0, rw.id().num, (3, 10), endianess);
 
     let mut display = ili9341::Ili9341::new_orig(
-        interface,
+        spi_display_interface,
         DummyOutputPin,
         &mut timer,
         ili9341::Orientation::Landscape,
@@ -205,8 +233,8 @@ fn main() -> ! {
     let i2s_interface = I2sPioInterfaceDB::new(
         dma.ch1,
         dma.ch2,
-        //(400 as u16, 0 as u8),
-        (248 as u16, 191 as u8),
+        (400 as u16, 0 as u8),
+        //(248 as u16, Z as u8),
         &mut pio_1,
         sm_1_0,
         (21, 22),
@@ -223,32 +251,47 @@ fn main() -> ! {
     const SCREEN_HEIGHT: usize =
         (<DisplaySize240x320 as DisplaySize>::HEIGHT as f32 / 1.0f32) as usize;
 
-    let spare: &'static mut [u16] =
-        cortex_m::singleton!(: Vec<u16>  = alloc::vec![0; SCREEN_WIDTH  ])
+    let spare: &'static mut [u8] =
+        cortex_m::singleton!(: Vec<u8>  = alloc::vec![0; SCREEN_WIDTH  ])
             .unwrap()
             .as_mut_slice();
 
-    let dm_spare: &'static mut [u16] =
-        cortex_m::singleton!(: Vec<u16>  = alloc::vec![0; SCREEN_WIDTH ])
+    let dm_spare: &'static mut [u8] =
+        cortex_m::singleton!(: Vec<u8>  = alloc::vec![0; SCREEN_WIDTH ])
             .unwrap()
             .as_mut_slice();
 
     let mut streamer = stream_display::Streamer::new(dma.ch0, dm_spare, spare);
-    // let scaler: scaler::ScreenScaler<144, 160, { SCREEN_WIDTH }, { SCREEN_HEIGHT }> =
-    //     scaler::ScreenScaler::new();
+    let scaler: scaler::ScreenScaler<144, 160, { SCREEN_WIDTH }, { SCREEN_HEIGHT }> =
+        scaler::ScreenScaler::new();
 
     loop {
         let start_time = timer.get_counter();
         display = display
-            .async_transfer_mode(0, 0, (160 - 1) as u16, (144 - 1) as u16, |iface| {
-                iface.transfer_16bit_mode(|sm| {
-                    streamer.stream::<_, _, _, _, 1>(
-                        sm,
-                        &mut (GameVideoIter::new(&mut gameboy)),
-                        |d| [d],
-                    )
-                })
-            })
+            .async_transfer_mode(
+                0,
+                0,
+                (SCREEN_HEIGHT - 1) as u16,
+                (SCREEN_WIDTH - 1) as u16,
+                |iface| {
+                    let (mut sp, dc) = iface.release();
+                    sp = sp.share_bus(|bus| {
+                        streamer.stream::<_, _, _, _, 2>(
+                            bus,
+                            &mut scaler.scale_iterator(GameVideoIter::new(&mut gameboy)),
+                            |d| d.to_be_bytes(),
+                        )
+                    });
+                    display_interface_spi::SPIInterface::new(sp, dc)
+                    // iface.transfer_16bit_mode(|sm| {
+                    //     streamer.stream::<_, _, _, _, 1>(
+                    //         sm,
+                    //         &mut (GameVideoIter::new(&mut gameboy)),
+                    //         |d| [d],
+                    //     )
+                    // })
+                },
+            )
             .unwrap();
 
         let end_time = timer.get_counter();
