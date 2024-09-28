@@ -59,7 +59,7 @@ static ALLOCATOR: Heap = Heap::empty();
 fn main() -> ! {
     {
         use core::mem::MaybeUninit;
-        const HEAP_SIZE: usize = 190000;
+        const HEAP_SIZE: usize = 200000;
         //const HEAP_SIZE: usize = 220000;
         static mut HEAP: [MaybeUninit<u8>; HEAP_SIZE] = [MaybeUninit::uninit(); HEAP_SIZE];
         unsafe { ALLOCATOR.init(HEAP.as_ptr() as usize, HEAP_SIZE) }
@@ -197,7 +197,7 @@ fn main() -> ! {
         pio_interface::PioInterface::new(3, rs, &mut pio_0, sm0_0, rw.id().num, (3, 10), endianess);
 
     let mut display = ili9341::Ili9341::new_orig(
-        spi_display_interface,
+        interface,
         DummyOutputPin,
         &mut timer,
         ili9341::Orientation::Landscape,
@@ -212,28 +212,35 @@ fn main() -> ! {
     let dma = pac.DMA.split(&mut pac.RESETS);
     //////////////////////AUDIO SETUP
     ///
-    let clock_divider: u32 = 351_000_000 * 1 / 5512;
+    let clock_divider: u32 = 351_000_000 * 4 / 44100;
+
     let int_divider = (clock_divider >> 8) as u16;
     let frak_divider = (clock_divider & 0xFF) as u8;
     info!(
         "Suggested dividers: int: {} frac: {}",
         int_divider, frak_divider
     );
+
+    let clock_frequency = 44_100 * 16 * 2;
+    let clock_divider = (351_000_000. / clock_frequency as f64 / 2.);
+    info!("Suggested dividers: clock_divider: {}", clock_divider);
+
     let _ = pins.gpio20.into_function::<hal::gpio::FunctionPio1>();
     let _ = pins.gpio21.into_function::<hal::gpio::FunctionPio1>();
     let _ = pins.gpio22.into_function::<hal::gpio::FunctionPio1>();
-    let audio_buffer: &'static mut [u32] =
-        cortex_m::singleton!(: Vec<u32>  = alloc::vec![0; 2000 * 1  ])
+    let audio_buffer: &'static mut [u16] =
+        cortex_m::singleton!(: Vec<u16>  = alloc::vec![0; 2000 * 5  ])
             .unwrap()
             .as_mut_slice();
-    let audio_buffer2: &'static mut [u32] =
-        cortex_m::singleton!(: Vec<u32>  = alloc::vec![0; 2000 * 1  ])
+    let audio_buffer2: &'static mut [u16] =
+        cortex_m::singleton!(: Vec<u16>  = alloc::vec![0; 2000 * 5  ])
             .unwrap()
             .as_mut_slice();
     let i2s_interface = I2sPioInterfaceDB::new(
         dma.ch2,
         dma.ch3,
-        (400 as u16, 0 as u8),
+        // (685 as u16, 37 as u8),
+        (int_divider as u16, frak_divider as u8),
         //(248 as u16, Z as u8),
         &mut pio_1,
         sm_1_0,
@@ -251,17 +258,17 @@ fn main() -> ! {
     const SCREEN_HEIGHT: usize =
         (<DisplaySize240x320 as DisplaySize>::HEIGHT as f32 / 1.0f32) as usize;
 
-    let spare: &'static mut [u8] =
-        cortex_m::singleton!(: Vec<u8>  = alloc::vec![0; SCREEN_WIDTH * 2 ])
+    let spare: &'static mut [u16] =
+        cortex_m::singleton!(: Vec<u16>  = alloc::vec![0; SCREEN_WIDTH * 1 ])
             .unwrap()
             .as_mut_slice();
 
-    let dm_spare: &'static mut [u8] =
-        cortex_m::singleton!(: Vec<u8>  = alloc::vec![0; SCREEN_WIDTH * 2 ])
+    let dm_spare: &'static mut [u16] =
+        cortex_m::singleton!(: Vec<u16>  = alloc::vec![0; SCREEN_WIDTH * 1 ])
             .unwrap()
             .as_mut_slice();
-    let dm_spare2: &'static mut [u8] =
-        cortex_m::singleton!(: Vec<u8>  = alloc::vec![0; SCREEN_WIDTH * 2 ])
+    let dm_spare2: &'static mut [u16] =
+        cortex_m::singleton!(: Vec<u16>  = alloc::vec![0; SCREEN_WIDTH * 1 ])
             .unwrap()
             .as_mut_slice();
     let mut streamer = stream_display::Streamer::new(dma.ch0, dma.ch1, dm_spare, spare, dm_spare2);
@@ -274,25 +281,27 @@ fn main() -> ! {
             .async_transfer_mode(
                 0,
                 0,
-                (SCREEN_HEIGHT - 1) as u16,
-                (SCREEN_WIDTH - 1) as u16,
+                // (SCREEN_HEIGHT - 1) as u16,
+                // (SCREEN_WIDTH - 1) as u16,
+                (160 - 1) as u16,
+                (144 - 1) as u16,
                 |iface| {
-                    let (mut sp, dc) = iface.release();
-                    sp = sp.share_bus(|bus| {
-                        streamer.stream::<_, _, _, _, 2>(
-                            bus,
-                            &mut scaler.scale_iterator(GameVideoIter::new(&mut gameboy)),
-                            |d| d.to_be_bytes(),
-                        )
-                    });
-                    display_interface_spi::SPIInterface::new(sp, dc)
-                    // iface.transfer_16bit_mode(|sm| {
-                    //     streamer.stream::<_, _, _, _, 1>(
-                    //         sm,
+                    // let (mut sp, dc) = iface.release();
+                    // sp = sp.share_bus(|bus| {
+                    //     streamer.stream::<_, _, _, _, 2>(
+                    //         bus,
                     //         &mut (GameVideoIter::new(&mut gameboy)),
-                    //         |d| [d],
+                    //         |d| d.to_be_bytes(),
                     //     )
-                    // })
+                    // });
+                    //display_interface_spi::SPIInterface::new(sp, dc)
+                    iface.transfer_16bit_mode(|sm| {
+                        streamer.stream::<_, _, _, _, 1>(
+                            sm,
+                            &mut (GameVideoIter::new(&mut gameboy)),
+                            |d| [d],
+                        )
+                    })
                 },
             )
             .unwrap();

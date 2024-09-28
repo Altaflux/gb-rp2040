@@ -50,12 +50,12 @@ where
             "jmp start_8 side 1 [1]",
             ".wrap"
         );
-
+        let out_pin_offset = ((1i16 - pins.0 as i16) + pins.1 as i16) as u8;
         let video_program_installed = pio.install(&video_program.program).unwrap();
         let program_offset = video_program_installed.offset();
         let (mut video_sm, rx, vid_tx) =
             hal::pio::PIOBuilder::from_installed_program(video_program_installed)
-                .out_pins(pins.0, (1 - pins.0) + pins.1)
+                .out_pins(pins.0, out_pin_offset)
                 .side_set_pin_base(rw)
                 .out_shift_direction(hal::pio::ShiftDirection::Left)
                 .in_shift_direction(hal::pio::ShiftDirection::Left)

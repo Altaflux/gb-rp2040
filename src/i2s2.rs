@@ -1,34 +1,25 @@
 use crate::rp_hal::hal;
-use alloc::boxed::Box;
-use defmt::info;
-use display_interface::{DataFormat, DisplayError, WriteOnlyDataCommand};
-use embedded_hal::digital::OutputPin;
 
 use fon::chan::{Ch16, Ch32};
-use fon::{Audio, Frame};
-use hal::pio::{PIOExt, PIO};
-use hal::pio::{Running, StateMachine, StateMachineIndex, Tx};
-use hal::pio::{Rx, UninitStateMachine};
-type Result = core::result::Result<(), DisplayError>;
 
-use embedded_dma::{ReadBuffer, Word};
+use hal::pio::UninitStateMachine;
+use hal::pio::{PIOExt, PIO};
+use hal::pio::{StateMachineIndex, Tx};
+
+use embedded_dma::ReadBuffer;
 use hal::dma::double_buffer::{Config as DConfig, Transfer as DTransfer};
-use hal::dma::single_buffer::{Config, Transfer};
-use hal::dma::Byte;
-use hal::dma::HalfWord;
+
+use defmt::*;
+use defmt_rtt as _;
 use hal::dma::SingleChannel;
 use hal::dma::{ReadTarget, WriteTarget};
 use rp2040_hal::dma::double_buffer::ReadNext;
 use rp2040_hal::dma::EndlessWriteTarget;
-
-// use defmt::*;
-// use defmt_rtt as _;
-
-type ToType<P, SM> = Tx<(P, SM), hal::dma::Word>;
+type ToType<P, SM> = Tx<(P, SM), hal::dma::HalfWord>;
 enum DmaState<
     CH1: SingleChannel,
     CH2: SingleChannel,
-    FROM: ReadTarget<ReceivedWord = u32>,
+    FROM: ReadTarget<ReceivedWord = u16>,
     P: PIOExt,
     SM: StateMachineIndex,
 > {
@@ -61,27 +52,36 @@ where
         sm: UninitStateMachine<(P, SM)>,
         clock_pin: (u8, u8),
         data_pin: u8,
-        buffer: &'static mut [u32],
-        buffer2: &'static mut [u32],
+        buffer: &'static mut [u16],
+        buffer2: &'static mut [u16],
     ) -> Self
     where
         P: PIOExt,
         SM: StateMachineIndex,
     {
-        //info!("With clock divider of: {}", clock_divider);
-        let audio_program = pio_proc::pio_file!("src/audio_i2s.pio");
+        let audio_program = pio_proc::pio_asm!(
+            ".side_set 2",
+            "    set x, 14          side 0b01", // side 0bWB - W = Word Clock, B = Bit Clock
+            "left_data:",
+            "    out pins, 1        side 0b00",
+            "    jmp x-- left_data  side 0b01",
+            "    out pins 1         side 0b10",
+            "    set x, 14          side 0b11",
+            "right_data:",
+            "    out pins 1         side 0b10",
+            "    jmp x-- right_data side 0b11",
+            "    out pins 1         side 0b00",
+        );
 
         let video_program_installed = pio.install(&audio_program.program).unwrap();
-        let program_offset = video_program_installed.offset();
-
         let (mut video_sm, rx, vid_tx) =
             hal::pio::PIOBuilder::from_installed_program(video_program_installed)
                 .out_pins(data_pin, 1)
                 .side_set_pin_base(clock_pin.0)
                 .out_shift_direction(hal::pio::ShiftDirection::Left)
                 .autopull(true)
-                .out_sticky(true)
-                .pull_threshold(32)
+                .out_sticky(false)
+                .pull_threshold(16)
                 .buffers(hal::pio::Buffers::OnlyTx)
                 .clock_divisor_fixed_point(clock_divider.0, clock_divider.1)
                 .build(sm);
@@ -89,18 +89,8 @@ where
         video_sm.set_pindirs(
             (clock_pin.0..clock_pin.1 + 1 as u8).map(|n| (n, hal::pio::PinDir::Output)),
         );
-        let mut sm = video_sm.start();
-        let to_dest = vid_tx.transfer_size(hal::dma::Word);
-
-        let instruction = pio::Instruction {
-            operands: pio::InstructionOperands::JMP {
-                condition: pio::JmpCondition::Always,
-                address: program_offset + audio_program.public_defines.entry_point as u8,
-            },
-            delay: 0,
-            side_set: Some(0b00),
-        };
-        sm.exec_instruction(instruction);
+        let _ = video_sm.start();
+        let to_dest = vid_tx.transfer_size(hal::dma::HalfWord);
 
         let from = LimitingArrayReadTarget::new(buffer, buffer.len() as u32);
         let from2 = LimitingArrayReadTarget::new(buffer2, buffer2.len() as u32);
@@ -123,7 +113,7 @@ where
         output_buffer: &[f32],
         static_buffer: LimitingArrayReadTarget,
     ) -> LimitingArrayReadTarget {
-        let output = static_buffer.new_max_read((output_buffer.len()) as u32);
+        let output = static_buffer.new_max_read((output_buffer.len() * 1) as u32);
 
         for (i, v) in output_buffer.chunks(2).enumerate() {
             let frame: fon::Frame<fon::chan::Ch16, 2> = fon::Frame::<_, 2>::new(
@@ -131,10 +121,11 @@ where
                 fon::chan::Ch16::from(Ch32::new(v[1])),
             );
             let channels = frame.channels();
-            let ch1: i16 = channels[0].into();
-            let ch2: i16 = channels[1].into();
-            let combined = combine_u16_to_u32(ch1 as u16, ch2 as u16);
-            output.array[i] = combined;
+            let ch1: u16 = <Ch16 as Into<i16>>::into(channels[0]) as u16;
+            let ch2: u16 = <Ch16 as Into<i16>>::into(channels[1]) as u16;
+
+            output.array[(i * 2) + 0] = ch1;
+            output.array[(i * 2) + 1] = ch2;
         }
         output
     }
@@ -149,10 +140,6 @@ where
 {
     fn play(&mut self, output_buffer: &[f32]) {
         let dma_state = core::mem::replace(&mut self.dma_state, None).unwrap();
-        // let (ch, audio_buffer, tx) = match dma_state {
-        //     DmaState::IDLE(ch, buff, tx) => (ch, buff, tx),
-        //     DmaState::RUNNING1(dma) => dma.abort(),
-        // };
 
         match dma_state {
             DmaState::IDLE(transfer) => {
@@ -171,29 +158,33 @@ where
     }
 
     fn samples_rate(&self) -> u32 {
-        5512
+        //8_000
+        44_100
+        //5_512
     }
 
     fn underflowed(&self) -> bool {
-        let blocked = match &self.dma_state {
+        let underflowed = match &self.dma_state {
             Some(dma_state) => match dma_state {
                 DmaState::IDLE(..) => true,
                 DmaState::RUNNING(transfer) => transfer.is_done(),
             },
             None => false,
         };
-
-        true
+        if !underflowed {
+            info!("Blocked!")
+        }
+        underflowed
     }
 }
 
 struct LimitingArrayReadTarget {
-    array: &'static mut [u32],
+    array: &'static mut [u16],
     max_read: u32,
 }
 
 impl LimitingArrayReadTarget {
-    fn new(array: &'static mut [u32], max_read: u32) -> Self {
+    fn new(array: &'static mut [u16], max_read: u32) -> Self {
         Self { array, max_read }
     }
 
@@ -214,7 +205,7 @@ fn combine_u16_to_u32(high: u16, low: u16) -> u32 {
     ((high as u32) << 16) | (low as u32)
 }
 unsafe impl ReadTarget for LimitingArrayReadTarget {
-    type ReceivedWord = u32;
+    type ReceivedWord = u16;
 
     fn rx_treq() -> Option<u8> {
         None
