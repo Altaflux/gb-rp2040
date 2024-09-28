@@ -11,7 +11,7 @@ use defmt_rtt as _;
 
 use embedded_sdmmc::{SdCard, VolumeManager};
 use gameboy::display::{GameVideoIter, GameboyLineBufferDisplay};
-use i2s::I2sPioInterface;
+//use i2s::I2sPioInterface;
 use i2s2::I2sPioInterfaceDB;
 use ili9341::{DisplaySize, DisplaySize240x320};
 use panic_probe as _;
@@ -36,7 +36,7 @@ mod array_scaler;
 mod clocks;
 mod dma_transfer;
 mod gameboy;
-mod i2s;
+//mod i2s;
 mod i2s2;
 mod pio_interface;
 mod rp_hal;
@@ -59,7 +59,7 @@ static ALLOCATOR: Heap = Heap::empty();
 fn main() -> ! {
     {
         use core::mem::MaybeUninit;
-        const HEAP_SIZE: usize = 200000;
+        const HEAP_SIZE: usize = 190000;
         //const HEAP_SIZE: usize = 220000;
         static mut HEAP: [MaybeUninit<u8>; HEAP_SIZE] = [MaybeUninit::uninit(); HEAP_SIZE];
         unsafe { ALLOCATOR.init(HEAP.as_ptr() as usize, HEAP_SIZE) }
@@ -212,7 +212,8 @@ fn main() -> ! {
     let dma = pac.DMA.split(&mut pac.RESETS);
     //////////////////////AUDIO SETUP
     ///
-    let clock_divider: u32 = 351_000_000 * 4 / 44100;
+    let sample_rate: u32 = 8_000;
+    let clock_divider: u32 = 351_000_000 * 4 / sample_rate;
 
     let int_divider = (clock_divider >> 8) as u16;
     let frak_divider = (clock_divider & 0xFF) as u8;
@@ -237,11 +238,10 @@ fn main() -> ! {
             .unwrap()
             .as_mut_slice();
     let i2s_interface = I2sPioInterfaceDB::new(
+        sample_rate,
         dma.ch2,
         dma.ch3,
-        // (685 as u16, 37 as u8),
         (int_divider as u16, frak_divider as u8),
-        //(248 as u16, Z as u8),
         &mut pio_1,
         sm_1_0,
         (21, 22),

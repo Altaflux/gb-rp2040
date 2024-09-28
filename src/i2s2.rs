@@ -9,12 +9,12 @@ use hal::pio::{StateMachineIndex, Tx};
 use embedded_dma::ReadBuffer;
 use hal::dma::double_buffer::{Config as DConfig, Transfer as DTransfer};
 
+use crate::hal::dma::double_buffer::ReadNext;
+use crate::hal::dma::EndlessWriteTarget;
 use defmt::*;
 use defmt_rtt as _;
 use hal::dma::SingleChannel;
 use hal::dma::{ReadTarget, WriteTarget};
-use rp2040_hal::dma::double_buffer::ReadNext;
-use rp2040_hal::dma::EndlessWriteTarget;
 type ToType<P, SM> = Tx<(P, SM), hal::dma::HalfWord>;
 enum DmaState<
     CH1: SingleChannel,
@@ -35,6 +35,7 @@ pub struct I2sPioInterfaceDB<
 > {
     dma_state: Option<DmaState<CH1, CH2, LimitingArrayReadTarget, P, SM>>,
     second_buffer: Option<LimitingArrayReadTarget>,
+    sample_rate: u32,
 }
 
 impl<CH1, CH2, P, SM> I2sPioInterfaceDB<CH1, CH2, P, SM>
@@ -45,6 +46,7 @@ where
     SM: StateMachineIndex,
 {
     pub fn new(
+        sample_rate: u32,
         channel: CH1,
         channel2: CH2,
         clock_divider: (u16, u8),
@@ -99,33 +101,19 @@ where
         Self {
             dma_state: Some(DmaState::IDLE(cfg)),
             second_buffer: Some(from2),
+            sample_rate: sample_rate,
         }
     }
 
-    // #[allow(dead_code)]
-    // pub fn free(self, pio: &mut PIO<P>) -> (UninitStateMachine<(P, SM)>, RS) {
-    //     let (sm, prg) = self.sm.uninit(self.rx, self.tx);
-    //     pio.uninstall(prg);
-    //     (sm, self.rs)
-    // }
-
     fn process_audio(
-        output_buffer: &[f32],
+        output_buffer: &[i16],
         static_buffer: LimitingArrayReadTarget,
     ) -> LimitingArrayReadTarget {
         let output = static_buffer.new_max_read((output_buffer.len() * 1) as u32);
 
         for (i, v) in output_buffer.chunks(2).enumerate() {
-            let frame: fon::Frame<fon::chan::Ch16, 2> = fon::Frame::<_, 2>::new(
-                fon::chan::Ch16::from(Ch32::new(v[0])),
-                fon::chan::Ch16::from(Ch32::new(v[1])),
-            );
-            let channels = frame.channels();
-            let ch1: u16 = <Ch16 as Into<i16>>::into(channels[0]) as u16;
-            let ch2: u16 = <Ch16 as Into<i16>>::into(channels[1]) as u16;
-
-            output.array[(i * 2) + 0] = ch1;
-            output.array[(i * 2) + 1] = ch2;
+            output.array[(i * 2) + 0] = v[0] as u16;
+            output.array[(i * 2) + 1] = v[1] as u16;
         }
         output
     }
@@ -138,7 +126,7 @@ where
     P: PIOExt,
     SM: StateMachineIndex,
 {
-    fn play(&mut self, output_buffer: &[f32]) {
+    fn play(&mut self, output_buffer: &[i16]) {
         let dma_state = core::mem::replace(&mut self.dma_state, None).unwrap();
 
         match dma_state {
@@ -158,9 +146,7 @@ where
     }
 
     fn samples_rate(&self) -> u32 {
-        //8_000
-        44_100
-        //5_512
+        self.sample_rate
     }
 
     fn underflowed(&self) -> bool {
@@ -171,9 +157,7 @@ where
             },
             None => false,
         };
-        if !underflowed {
-            info!("Blocked!")
-        }
+
         underflowed
     }
 }
@@ -195,15 +179,7 @@ impl LimitingArrayReadTarget {
         }
     }
 }
-fn convert_sampling(i: f32) -> i16 {
-    let clamped = (i).max(-1.0).min(1.0);
-    let clamp = (clamped * i16::MAX as f32) as i16;
-    clamp
-}
-fn combine_u16_to_u32(high: u16, low: u16) -> u32 {
-    // Shift the high value to the left by 16 bits and combine with low
-    ((high as u32) << 16) | (low as u32)
-}
+
 unsafe impl ReadTarget for LimitingArrayReadTarget {
     type ReceivedWord = u16;
 
@@ -219,27 +195,4 @@ unsafe impl ReadTarget for LimitingArrayReadTarget {
     fn rx_increment(&self) -> bool {
         self.array.rx_increment()
     }
-}
-
-pub fn bla<
-    CH1: SingleChannel,
-    CH2: SingleChannel,
-    FROM: ReadTarget<ReceivedWord = u32>,
-    // FROM2: ReadTarget<ReceivedWord = u32>,
-    TO: WriteTarget<TransmittedWord = u32> + EndlessWriteTarget,
->(
-    ch: (CH1, CH2),
-    from: FROM,
-    from2: FROM,
-    to: TO,
-) {
-    let cfg = DConfig::new(ch, from, to);
-    //STATE 1
-    let dma: DTransfer<CH1, CH2, FROM, TO, ()> = cfg.start();
-
-    //STATE 2
-    let result: DTransfer<CH1, CH2, FROM, TO, ReadNext<FROM>> = dma.read_next(from2);
-
-    let fo: (FROM, DTransfer<CH1, CH2, FROM, TO, ()>) = result.wait();
-    let dksj: DTransfer<CH1, CH2, FROM, TO, ReadNext<FROM>> = fo.1.read_next(fo.0);
 }

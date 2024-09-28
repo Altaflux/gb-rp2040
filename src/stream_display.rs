@@ -2,10 +2,10 @@ use crate::array_scaler::ScreenHandler;
 use crate::hal::dma::WriteTarget;
 
 use crate::dma_transfer;
+use crate::hal::dma::EndlessWriteTarget;
 use crate::rp_hal::hal;
 use embedded_dma::Word;
 use hal::dma::SingleChannel;
-use rp2040_hal::dma::EndlessWriteTarget;
 
 pub struct Streamer<CH1, CH2, DO: 'static> {
     dma_channel1: Option<CH1>,
