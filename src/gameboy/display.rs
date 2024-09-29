@@ -50,7 +50,7 @@ impl Screen for GameboyLineBufferDisplay {
         let nano_seconds = diff.to_nanos();
         if NANOS_IN_VSYNC > nano_seconds {
             let time_delay = NANOS_IN_VSYNC.saturating_sub(nano_seconds) as u32;
-            self.delay.delay_ns(time_delay);
+            //self.delay.delay_ns(time_delay);
         }
         self.time_counter = self.delay.get_counter();
     }

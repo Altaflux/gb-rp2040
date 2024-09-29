@@ -166,7 +166,7 @@ where
             None => false,
         };
 
-        true
+        underflowed
     }
 }
 
