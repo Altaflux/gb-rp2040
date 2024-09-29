@@ -1,7 +1,7 @@
 pub struct NullAudioPlayer;
 
 impl gb_core::hardware::sound::AudioPlayer for NullAudioPlayer {
-    fn play(&mut self, _output_buffer: &[i16]) {
+    fn play(&mut self, _output_buffer: &[f32]) {
         // Do nothing
     }
 

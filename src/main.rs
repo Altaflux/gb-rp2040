@@ -212,8 +212,8 @@ fn main() -> ! {
     let dma = pac.DMA.split(&mut pac.RESETS);
     //////////////////////AUDIO SETUP
     ///
-    let sample_rate: u32 = 8_000;
-    let clock_divider: u32 = 351_000_000 * 4 / sample_rate;
+    let sample_rate: u32 = 16000;
+    let clock_divider: u32 = 369_000_000 * 4 / sample_rate;
 
     let int_divider = (clock_divider >> 8) as u16;
     let frak_divider = (clock_divider & 0xFF) as u8;
@@ -222,8 +222,14 @@ fn main() -> ! {
         int_divider, frak_divider
     );
 
-    let clock_frequency = 44_100 * 16 * 2;
-    let clock_divider = (351_000_000. / clock_frequency as f64 / 2.);
+    let clock_frequency = 16000 * 16 * 2;
+    let clock_divider = (369_000_000. / clock_frequency as f64 / 2.);
+    let int_divider2 = (clock_frequency >> 8) as u16;
+    let frak_divider2 = (clock_frequency & 0xFF) as u8;
+    info!(
+        "Suggested dividers2: int: {} frac: {}",
+        int_divider2, frak_divider2
+    );
     info!("Suggested dividers: clock_divider: {}", clock_divider);
 
     let _ = pins.gpio20.into_function::<hal::gpio::FunctionPio1>();
@@ -259,16 +265,16 @@ fn main() -> ! {
         (<DisplaySize240x320 as DisplaySize>::HEIGHT as f32 / 1.0f32) as usize;
 
     let spare: &'static mut [u16] =
-        cortex_m::singleton!(: Vec<u16>  = alloc::vec![0; SCREEN_WIDTH * 1 ])
+        cortex_m::singleton!(: Vec<u16>  = alloc::vec![0; SCREEN_WIDTH * 3 ])
             .unwrap()
             .as_mut_slice();
 
     let dm_spare: &'static mut [u16] =
-        cortex_m::singleton!(: Vec<u16>  = alloc::vec![0; SCREEN_WIDTH * 1 ])
+        cortex_m::singleton!(: Vec<u16>  = alloc::vec![0; SCREEN_WIDTH * 3 ])
             .unwrap()
             .as_mut_slice();
     let dm_spare2: &'static mut [u16] =
-        cortex_m::singleton!(: Vec<u16>  = alloc::vec![0; SCREEN_WIDTH * 1 ])
+        cortex_m::singleton!(: Vec<u16>  = alloc::vec![0; SCREEN_WIDTH * 3 ])
             .unwrap()
             .as_mut_slice();
     let mut streamer = stream_display::Streamer::new(dma.ch0, dma.ch1, dm_spare, spare, dm_spare2);

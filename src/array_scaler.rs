@@ -59,7 +59,7 @@ where
             }
             width_position += TS;
             if width_position == buffer.len() {
-                buffer = transfer.send_scanline(buffer);
+                //buffer = transfer.send_scanline(buffer);
                 width_position = 0;
             }
         }

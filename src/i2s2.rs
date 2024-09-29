@@ -106,14 +106,22 @@ where
     }
 
     fn process_audio(
-        output_buffer: &[i16],
+        output_buffer: &[f32],
         static_buffer: LimitingArrayReadTarget,
     ) -> LimitingArrayReadTarget {
         let output = static_buffer.new_max_read((output_buffer.len() * 1) as u32);
 
         for (i, v) in output_buffer.chunks(2).enumerate() {
-            output.array[(i * 2) + 0] = v[0] as u16;
-            output.array[(i * 2) + 1] = v[1] as u16;
+            let frame: fon::Frame<fon::chan::Ch16, 2> = fon::Frame::<_, 2>::new(
+                fon::chan::Ch16::from(Ch32::new(v[0])),
+                fon::chan::Ch16::from(Ch32::new(v[1])),
+            );
+            let channels = frame.channels();
+            let ch1: u16 = <Ch16 as Into<i16>>::into(channels[0]) as u16;
+            let ch2: u16 = <Ch16 as Into<i16>>::into(channels[1]) as u16;
+
+            output.array[(i * 2) + 0] = ch1;
+            output.array[(i * 2) + 1] = ch2;
         }
         output
     }
@@ -126,7 +134,7 @@ where
     P: PIOExt,
     SM: StateMachineIndex,
 {
-    fn play(&mut self, output_buffer: &[i16]) {
+    fn play(&mut self, output_buffer: &[f32]) {
         let dma_state = core::mem::replace(&mut self.dma_state, None).unwrap();
 
         match dma_state {
@@ -158,7 +166,7 @@ where
             None => false,
         };
 
-        underflowed
+        true
     }
 }
 
