@@ -1,6 +1,5 @@
 use crate::rp_hal::hal;
 
-use fon::chan::{Ch16, Ch32};
 
 use hal::pio::UninitStateMachine;
 use hal::pio::{PIOExt, PIO};
@@ -10,11 +9,9 @@ use embedded_dma::ReadBuffer;
 use hal::dma::double_buffer::{Config as DConfig, Transfer as DTransfer};
 
 use crate::hal::dma::double_buffer::ReadNext;
-use crate::hal::dma::EndlessWriteTarget;
-use defmt::*;
 use defmt_rtt as _;
 use hal::dma::SingleChannel;
-use hal::dma::{ReadTarget, WriteTarget};
+use hal::dma::ReadTarget;
 type ToType<P, SM> = Tx<(P, SM), hal::dma::HalfWord>;
 enum DmaState<
     CH1: SingleChannel,

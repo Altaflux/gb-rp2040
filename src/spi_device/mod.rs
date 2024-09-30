@@ -1,6 +1,6 @@
 mod exclusive;
 mod shared;
-use core::fmt::{self, Debug, Display, Formatter};
+use core::fmt::{Debug};
 use embedded_hal::spi::{Error, ErrorKind};
 pub use exclusive::*;
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]

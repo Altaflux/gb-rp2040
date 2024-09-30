@@ -223,7 +223,7 @@ fn main() -> ! {
     );
 
     let clock_frequency = 16000 * 16 * 2;
-    let clock_divider = (369_000_000. / clock_frequency as f64 / 2.);
+    let clock_divider = 369_000_000. / clock_frequency as f64 / 2.;
     let int_divider2 = (clock_frequency >> 8) as u16;
     let frak_divider2 = (clock_frequency & 0xFF) as u8;
     info!(
@@ -278,7 +278,7 @@ fn main() -> ! {
             .unwrap()
             .as_mut_slice();
     let mut streamer = stream_display::Streamer::new(dma.ch0, dma.ch1, dm_spare, spare, dm_spare2);
-    let mut scaler: scaler::ScreenScaler<144, 160, { SCREEN_WIDTH }, { SCREEN_HEIGHT }> =
+    let scaler: scaler::ScreenScaler<144, 160, { SCREEN_WIDTH }, { SCREEN_HEIGHT }> =
         scaler::ScreenScaler::new();
 
     loop {

@@ -171,7 +171,7 @@ where
         DataFormat::U8(slice) => {
             iface.set_8bit_mode();
             for i in slice {
-                while !iface.tx.write((*i as u32)) {}
+                while !iface.tx.write(*i as u32) {}
             }
             while !iface.tx.is_empty() {}
             Ok(())
