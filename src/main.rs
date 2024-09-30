@@ -278,7 +278,7 @@ fn main() -> ! {
             .unwrap()
             .as_mut_slice();
     let mut streamer = stream_display::Streamer::new(dma.ch0, dma.ch1, dm_spare, spare, dm_spare2);
-    let scaler: scaler::ScreenScaler<144, 160, { SCREEN_WIDTH }, { SCREEN_HEIGHT }> =
+    let mut scaler: scaler::ScreenScaler<144, 160, { SCREEN_WIDTH }, { SCREEN_HEIGHT }> =
         scaler::ScreenScaler::new();
 
     loop {
@@ -287,10 +287,10 @@ fn main() -> ! {
             .async_transfer_mode(
                 0,
                 0,
-                // (SCREEN_HEIGHT - 1) as u16,
-                // (SCREEN_WIDTH - 1) as u16,
-                (160 - 1) as u16,
-                (144 - 1) as u16,
+                (SCREEN_HEIGHT - 1) as u16,
+                (SCREEN_WIDTH - 1) as u16,
+                // (160 - 1) as u16,
+                // (144 - 1) as u16,
                 |iface| {
                     // let (mut sp, dc) = iface.release();
                     // sp = sp.share_bus(|bus| {
@@ -304,7 +304,7 @@ fn main() -> ! {
                     iface.transfer_16bit_mode(|sm| {
                         streamer.stream::<_, _, _, _, 1>(
                             sm,
-                            &mut (GameVideoIter::new(&mut gameboy)),
+                            &mut scaler.scale_iterator(GameVideoIter::new(&mut gameboy)),
                             |d| [d],
                         )
                     })

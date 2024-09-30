@@ -129,14 +129,14 @@ where
             DmaState::IDLE(transfer) => {
                 let second_buffer = core::mem::replace(&mut self.second_buffer, None).unwrap();
                 let second_buffer = Self::process_audio(output_buffer, second_buffer);
-                let kldf = transfer.read_next(second_buffer);
-                self.dma_state = Some(DmaState::RUNNING(kldf));
+                let new_transfer = transfer.read_next(second_buffer);
+                self.dma_state = Some(DmaState::RUNNING(new_transfer));
             }
             DmaState::RUNNING(transfer) => {
                 let dms = transfer.wait();
                 let second_buffer = Self::process_audio(output_buffer, dms.0);
-                let kldf = dms.1.read_next(second_buffer);
-                self.dma_state = Some(DmaState::RUNNING(kldf));
+                let new_transfer = dms.1.read_next(second_buffer);
+                self.dma_state = Some(DmaState::RUNNING(new_transfer));
             }
         };
     }

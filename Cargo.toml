@@ -12,6 +12,7 @@ embedded-hal = { version = "1.0.0" }
 defmt = "0.3"
 defmt-rtt = "0.4"
 panic-probe = { version = "0.3", features = ["print-defmt"] }
+unroll = "0.1.5"
 
 # We're using a Pico by default on this template
 rp2040-hal = { path = "C:\\Users\\pablo\\projects\\rp-hal\\rp2040-hal" }

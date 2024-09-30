@@ -99,7 +99,7 @@ where
     T: Copy,
 {
     type Item = T;
-    //#[unroll::unroll_for_loops]
+
     fn next(&mut self) -> Option<Self::Item> {
         loop {
             if self.scaled_line_buffer_repeat > 0 {
