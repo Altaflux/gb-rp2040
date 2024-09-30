@@ -59,7 +59,7 @@ static ALLOCATOR: Heap = Heap::empty();
 fn main() -> ! {
     {
         use core::mem::MaybeUninit;
-        const HEAP_SIZE: usize = 190000;
+        const HEAP_SIZE: usize = 190002;
         //const HEAP_SIZE: usize = 220000;
         static mut HEAP: [MaybeUninit<u8>; HEAP_SIZE] = [MaybeUninit::uninit(); HEAP_SIZE];
         unsafe { ALLOCATOR.init(HEAP.as_ptr() as usize, HEAP_SIZE) }
@@ -197,7 +197,7 @@ fn main() -> ! {
         pio_interface::PioInterface::new(3, rs, &mut pio_0, sm0_0, rw.id().num, (3, 10), endianess);
 
     let mut display = ili9341::Ili9341::new_orig(
-        interface,
+        spi_display_interface,
         DummyOutputPin,
         &mut timer,
         ili9341::Orientation::Landscape,
@@ -264,23 +264,23 @@ fn main() -> ! {
     const SCREEN_HEIGHT: usize =
         (<DisplaySize240x320 as DisplaySize>::HEIGHT as f32 / 1.0f32) as usize;
 
-    let spare: &'static mut [u16] =
-        cortex_m::singleton!(: Vec<u16>  = alloc::vec![0; SCREEN_WIDTH * 3 ])
+    let spare: &'static mut [u8] =
+        cortex_m::singleton!(: Vec<u8>  = alloc::vec![0; SCREEN_WIDTH * 4 ])
             .unwrap()
             .as_mut_slice();
 
-    let dm_spare: &'static mut [u16] =
-        cortex_m::singleton!(: Vec<u16>  = alloc::vec![0; SCREEN_WIDTH * 3 ])
+    let dm_spare: &'static mut [u8] =
+        cortex_m::singleton!(: Vec<u8>  = alloc::vec![0; SCREEN_WIDTH * 4 ])
             .unwrap()
             .as_mut_slice();
-    let dm_spare2: &'static mut [u16] =
-        cortex_m::singleton!(: Vec<u16>  = alloc::vec![0; SCREEN_WIDTH * 3 ])
+    let dm_spare2: &'static mut [u8] =
+        cortex_m::singleton!(: Vec<u8>  = alloc::vec![0; SCREEN_WIDTH * 4 ])
             .unwrap()
             .as_mut_slice();
     let mut streamer = stream_display::Streamer::new(dma.ch0, dma.ch1, dm_spare, spare, dm_spare2);
     let scaler: scaler::ScreenScaler<144, 160, { SCREEN_WIDTH }, { SCREEN_HEIGHT }> =
         scaler::ScreenScaler::new();
-
+    let mut loop_counter: usize = 0;
     loop {
         let start_time = timer.get_counter();
         display = display
@@ -292,22 +292,22 @@ fn main() -> ! {
                 // (160 - 1) as u16,
                 // (144 - 1) as u16,
                 |iface| {
-                    // let (mut sp, dc) = iface.release();
-                    // sp = sp.share_bus(|bus| {
-                    //     streamer.stream::<_, _, _, _, 2>(
-                    //         bus,
-                    //         &mut (GameVideoIter::new(&mut gameboy)),
-                    //         |d| d.to_be_bytes(),
-                    //     )
-                    // });
-                    //display_interface_spi::SPIInterface::new(sp, dc)
-                    iface.transfer_16bit_mode(|sm| {
-                        streamer.stream::<_, _, _, _, 1>(
-                            sm,
+                    let (mut sp, dc) = iface.release();
+                    sp = sp.share_bus(|bus| {
+                        streamer.stream::<_, _, _, _, 2>(
+                            bus,
                             &mut scaler.scale_iterator(GameVideoIter::new(&mut gameboy)),
-                            |d| [d],
+                            |d| d.to_be_bytes(),
                         )
-                    })
+                    });
+                    display_interface_spi::SPIInterface::new(sp, dc)
+                    // iface.transfer_16bit_mode(|sm| {
+                    //     streamer.stream::<_, _, _, _, 1>(
+                    //         sm,
+                    //         &mut scaler.scale_iterator(GameVideoIter::new(&mut gameboy)),
+                    //         |d| [d],
+                    //     )
+                    // })
                 },
             )
             .unwrap();
@@ -316,12 +316,14 @@ fn main() -> ! {
         let diff = end_time - start_time;
         let milliseconds = diff.to_millis();
         info!(
-            "Time elapsed: {}:{}",
+            "Loop: {}, Time elapsed: {}:{}",
+            loop_counter,
             milliseconds / 1000,
             milliseconds % 1000
         );
         info!("Free Mem: {}", ALLOCATOR.free());
         info!("Used Mem: {}", ALLOCATOR.used());
+        loop_counter += 1;
     }
 }
 #[inline(always)]

@@ -53,6 +53,10 @@ impl Screen for GameboyLineBufferDisplay {
         }
         self.time_counter = self.delay.get_counter();
     }
+
+    fn frame_rate(&self) -> u8 {
+        30
+    }
 }
 
 pub struct GameVideoIter<'a, 'b> {
@@ -85,7 +89,7 @@ impl<'a, 'b> Iterator for GameVideoIter<'a, 'b> {
                 } else {
                     self.current_line_index = self.current_line_index + 1;
                 }
-
+                //self.gameboy.tick();
                 return Some(pixel);
             } else {
                 self.gameboy.tick();
