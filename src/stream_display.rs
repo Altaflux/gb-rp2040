@@ -37,6 +37,7 @@ where
         }
     }
 
+    #[inline(always)]
     pub fn stream<TO>(&mut self, tx: TO, iterator: &mut dyn Iterator<Item = DO>) -> TO
     where
         DO: Word + Copy,

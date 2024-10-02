@@ -66,18 +66,19 @@ codegen-units = 1
 debug = 2
 debug-assertions = true
 incremental = false
-opt-level = 0
-overflow-checks = false
+opt-level = 3
+overflow-checks = true
 
 # cargo build/run --release
 [profile.release]
 codegen-units = 1
-debug = 0
+debug = 2
 debug-assertions = false
 incremental = false
 lto = 'fat'
 opt-level = 3
 overflow-checks = false
+panic = "abort"
 
 # do not optimize proc-macro crates = faster builds from scratch
 [profile.dev.build-override]
@@ -91,7 +92,7 @@ overflow-checks = false
 codegen-units = 1
 debug = false
 debug-assertions = false
-opt-level = 3
+opt-level = 0
 overflow-checks = false
 
 # cargo test
@@ -101,7 +102,7 @@ debug = 2
 debug-assertions = true
 incremental = false
 opt-level = 3
-overflow-checks = false
+overflow-checks = true
 
 # cargo test --release
 [profile.bench]

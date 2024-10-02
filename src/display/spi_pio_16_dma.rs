@@ -13,7 +13,12 @@ type Result = core::result::Result<(), DisplayError>;
 use hal::dma::Byte;
 use rp2040_hal::dma::SingleChannel;
 use rp2040_hal::pio::Stopped;
+
+use defmt::*;
+use defmt_rtt as _;
+
 pub struct SpiPioInterfaceMultiBitDma<
+    'a,
     RS,
     P: PIOExt,
     SM1: StateMachineIndex,
@@ -21,7 +26,7 @@ pub struct SpiPioInterfaceMultiBitDma<
     CH1,
     CH2,
 > {
-    streamer: Option<Streamer<CH1, CH2, u16>>,
+    streamer: &'a mut Streamer<CH1, CH2, u16>,
     mode: Option<PioMode<P, SM1, SM2>>,
     rs: RS,
 }
@@ -46,7 +51,7 @@ struct PioContainer<P: PIOExt, SM: StateMachineIndex, TxSize, State> {
     tx: Tx<(P, SM), TxSize>,
     rx: Rx<(P, SM)>,
 }
-impl<RS, P, SM1, SM2, CH1, CH2> SpiPioInterfaceMultiBitDma<RS, P, SM1, SM2, CH1, CH2>
+impl<'a, RS, P, SM1, SM2, CH1, CH2> SpiPioInterfaceMultiBitDma<'a, RS, P, SM1, SM2, CH1, CH2>
 where
     P: PIOExt,
     SM1: StateMachineIndex,
@@ -63,7 +68,7 @@ where
         sm2: UninitStateMachine<(P, SM2)>,
         clk: u8,
         tx: u8,
-        streamer: Streamer<CH1, CH2, u16>,
+        streamer: &'a mut Streamer<CH1, CH2, u16>,
     ) -> Self {
         let video_program =
             pio_proc::pio_asm!(".side_set 1 ", "out pins, 1 side 0 [1]", "nop side 1",);
@@ -110,49 +115,50 @@ where
             rx: rx_16b,
         };
         Self {
-            streamer: Some(streamer),
+            streamer: streamer,
             rs,
             mode: Some(PioMode::ByteMode((byte_sm, half_word_sm))),
         }
     }
 
-    pub fn transfer_16bit_mode<F>(&mut self, mut callback: F)
-    where
-        F: FnMut(Tx<(P, SM2), HalfWord>, &mut Streamer<CH1, CH2, u16>) -> Tx<(P, SM2), HalfWord>,
-    {
-        let pio_mode = core::mem::replace(&mut self.mode, None).unwrap();
-        let (byte_sm, mut half_byte_sm) = Self::set_16bit_mode(pio_mode);
+    // pub fn transfer_16bit_mode<F>(&mut self, mut callback: F)
+    // where
+    //     F: FnMut(Tx<(P, SM2), HalfWord>, &mut Streamer<CH1, CH2, u16>) -> Tx<(P, SM2), HalfWord>,
+    // {
+    //     let pio_mode = core::mem::replace(&mut self.mode, None).unwrap();
+    //     let (byte_sm, mut half_byte_sm) = Self::set_16bit_mode(pio_mode);
 
-        let mut streamer = self.streamer.take().unwrap();
-        let interface = (callback)(half_byte_sm.tx, &mut streamer);
-        half_byte_sm.tx = interface;
-        self.streamer = Some(streamer);
-        self.mode = Some(PioMode::HalfWordMode((byte_sm, half_byte_sm)));
-    }
+    //     let mut streamer = self.streamer.take().unwrap();
+    //     let interface = (callback)(half_byte_sm.tx, &mut streamer);
+    //     half_byte_sm.tx = interface;
+    //     self.streamer = Some(streamer);
+    //     self.mode = Some(PioMode::HalfWordMode((byte_sm, half_byte_sm)));
+    // }
 
-    pub fn transfer_16bit_mode_two<F>(&mut self, mut callback: F)
-    where
-        F: FnMut(
-            Tx<(P, SM2), HalfWord>,
-            Streamer<CH1, CH2, u16>,
-        ) -> (Tx<(P, SM2), HalfWord>, Streamer<CH1, CH2, u16>),
-    {
-        let pio_mode = core::mem::replace(&mut self.mode, None).unwrap();
-        let (byte_sm, mut half_byte_sm) = Self::set_16bit_mode(pio_mode);
-        let mut streamer = self.streamer.take().unwrap();
-        let interface = (callback)(half_byte_sm.tx, streamer);
-        half_byte_sm.tx = interface.0;
-        self.streamer = Some(interface.1);
-        self.mode = Some(PioMode::HalfWordMode((byte_sm, half_byte_sm)));
-    }
+    // pub fn transfer_16bit_mode_two<F>(&mut self, mut callback: F)
+    // where
+    //     F: FnMut(
+    //         Tx<(P, SM2), HalfWord>,
+    //         Streamer<CH1, CH2, u16>,
+    //     ) -> (Tx<(P, SM2), HalfWord>, Streamer<CH1, CH2, u16>),
+    // {
+    //     let pio_mode = core::mem::replace(&mut self.mode, None).unwrap();
+    //     let (byte_sm, mut half_byte_sm) = Self::set_16bit_mode(pio_mode);
+    //     let mut streamer = self.streamer.take().unwrap();
+    //     let interface = (callback)(half_byte_sm.tx, streamer);
+    //     half_byte_sm.tx = interface.0;
+    //     self.streamer = Some(interface.1);
+    //     self.mode = Some(PioMode::HalfWordMode((byte_sm, half_byte_sm)));
+    // }
 
+    #[inline(never)]
     pub fn iterator_16bit_mode(&mut self, iterator: &mut dyn Iterator<Item = u16>) {
         let pio_mode = core::mem::replace(&mut self.mode, None).unwrap();
         let (byte_sm, mut half_byte_sm) = Self::set_16bit_mode(pio_mode);
 
-        let mut streamer = self.streamer.take().unwrap();
-        half_byte_sm.tx = streamer.stream(half_byte_sm.tx, iterator);
-        self.streamer = Some(streamer);
+        // let mut streamer = self.streamer;
+        half_byte_sm.tx = self.streamer.stream(half_byte_sm.tx, iterator);
+        //self.streamer = Some(streamer);
         self.mode = Some(PioMode::HalfWordMode((byte_sm, half_byte_sm)));
     }
 
@@ -165,6 +171,18 @@ where
 
         let interface = (callback)(byte_sm.tx);
         byte_sm.tx = interface;
+
+        self.mode = Some(PioMode::ByteMode((byte_sm, half_byte_sm)));
+    }
+    pub fn transfer_16bit_mode_no_stream<F>(&mut self, mut callback: F)
+    where
+        F: FnMut(Tx<(P, SM1), HalfWord>) -> Tx<(P, SM1), HalfWord>,
+    {
+        let pio_mode = core::mem::replace(&mut self.mode, None).unwrap();
+        let (mut byte_sm, half_byte_sm) = Self::set_8bit_mode(pio_mode);
+
+        let interface = (callback)(byte_sm.tx.transfer_size(HalfWord));
+        byte_sm.tx = interface.transfer_size(Byte);
 
         self.mode = Some(PioMode::ByteMode((byte_sm, half_byte_sm)));
     }
@@ -242,97 +260,104 @@ where
     //     pio.uninstall(prg);
     //     (sm, self.rs)
     // }
+
+    #[inline(always)]
+    fn send_data(&mut self, words: DataFormat<'_>) -> Result
+    where
+        P: PIOExt,
+        SM1: StateMachineIndex,
+        SM2: StateMachineIndex,
+        RS: OutputPin,
+    {
+        match words {
+            DataFormat::U8(slice) => {
+                self.transfer_8bit_mode(|mut tx| {
+                    for i in slice {
+                        while !tx.write_u8_replicated(*i) {}
+                    }
+                    while !tx.is_empty() {}
+                    return tx;
+                });
+
+                Ok(())
+            }
+            // DataFormat::U16(slice) => {
+            //     for i in slice {
+            //         while !iface.tx.write_u16_replicated(*i) {}
+            //     }
+            //     while !iface.tx.is_empty() {}
+            //     Ok(())
+            // }
+            // DataFormat::U16LE(slice) => {
+            //     for i in slice {
+            //         let tmp = (iface.endian_function)(false, *i);
+            //         while !iface.tx.write_u16_replicated(tmp) {}
+            //     }
+            //     while !iface.tx.is_empty() {}
+            //     Ok(())
+            // }
+            // DataFormat::U16BE(slice) => {
+            //     for i in slice {
+            //         let tmp = (iface.endian_function)(true, *i);
+            //         while !iface.tx.write_u16_replicated(tmp) {}
+            //     }
+            //     while !iface.tx.is_empty() {}
+            //     Ok(())
+            // }
+            // DataFormat::U8Iter(iter) => {
+            //     for i in iter {
+            //         while !iface.tx.write_u8_replicated(i) {}
+            //     }
+            //     while !iface.tx.is_empty() {}
+            //     Ok(())
+            // }
+            // DataFormat::U16LEIter(iter) => {
+            //     for i in iter {
+            //         let tmp = (iface.endian_function)(false, i);
+            //         while !iface.tx.write_u16_replicated(tmp) {}
+            //     }
+            //     while !iface.tx.is_empty() {}
+            //     Ok(())
+            // }
+            DataFormat::U16BEIter(iter) => {
+                // self.transfer_16bit_mode_no_stream(|mut tx| {
+                //     for i in iter.into_iter() {
+                //         let parts = i.to_be_bytes();
+                //         while !tx.write_u8_replicated(parts[0]) {}
+                //         while !tx.write_u8_replicated(parts[1]) {}
+                //     }
+                //     while !tx.is_empty() {}
+                //     return tx;
+                // });
+                info!("Invokeing U16BEIter");
+
+                //core::panic!("U16BEIter called");
+                // self.iterator_16bit_mode(iter);
+                Ok(())
+            }
+            _ => Err(DisplayError::DataFormatNotImplemented),
+        }
+    }
 }
 
-impl<RS, P, SM1, SM2, CH1: SingleChannel, CH2: SingleChannel> WriteOnlyDataCommand
-    for SpiPioInterfaceMultiBitDma<RS, P, SM1, SM2, CH1, CH2>
+impl<'a, RS, P, SM1, SM2, CH1: SingleChannel, CH2: SingleChannel> WriteOnlyDataCommand
+    for SpiPioInterfaceMultiBitDma<'a, RS, P, SM1, SM2, CH1, CH2>
 where
     P: PIOExt,
     SM1: StateMachineIndex,
     SM2: StateMachineIndex,
     RS: OutputPin,
 {
+    #[inline(always)]
     fn send_commands(&mut self, cmd: display_interface::DataFormat<'_>) -> Result {
         self.rs.set_low().map_err(|_| DisplayError::RSError)?;
-        send_data(self, cmd)?;
+        self.send_data(cmd)?;
         Ok(())
     }
-
+    #[inline(always)]
     fn send_data(&mut self, buf: display_interface::DataFormat<'_>) -> Result {
         self.rs.set_high().map_err(|_| DisplayError::RSError)?;
-        send_data(self, buf)?;
+        self.send_data(buf)?;
         Ok(())
-    }
-}
-
-fn send_data<RS, P, SM1, SM2, CH1: SingleChannel, CH2: SingleChannel>(
-    iface: &mut SpiPioInterfaceMultiBitDma<RS, P, SM1, SM2, CH1, CH2>,
-    words: DataFormat<'_>,
-) -> Result
-where
-    P: PIOExt,
-    SM1: StateMachineIndex,
-    SM2: StateMachineIndex,
-    RS: OutputPin,
-{
-    match words {
-        DataFormat::U8(slice) => {
-            iface.transfer_8bit_mode(|mut tx| {
-                for i in slice {
-                    while !tx.write_u8_replicated(*i) {}
-                }
-                while !tx.is_empty() {}
-                return tx;
-            });
-
-            Ok(())
-        }
-        // DataFormat::U16(slice) => {
-        //     for i in slice {
-        //         while !iface.tx.write_u16_replicated(*i) {}
-        //     }
-        //     while !iface.tx.is_empty() {}
-        //     Ok(())
-        // }
-        // DataFormat::U16LE(slice) => {
-        //     for i in slice {
-        //         let tmp = (iface.endian_function)(false, *i);
-        //         while !iface.tx.write_u16_replicated(tmp) {}
-        //     }
-        //     while !iface.tx.is_empty() {}
-        //     Ok(())
-        // }
-        // DataFormat::U16BE(slice) => {
-        //     for i in slice {
-        //         let tmp = (iface.endian_function)(true, *i);
-        //         while !iface.tx.write_u16_replicated(tmp) {}
-        //     }
-        //     while !iface.tx.is_empty() {}
-        //     Ok(())
-        // }
-        // DataFormat::U8Iter(iter) => {
-        //     for i in iter {
-        //         while !iface.tx.write_u8_replicated(i) {}
-        //     }
-        //     while !iface.tx.is_empty() {}
-        //     Ok(())
-        // }
-        // DataFormat::U16LEIter(iter) => {
-        //     for i in iter {
-        //         let tmp = (iface.endian_function)(false, i);
-        //         while !iface.tx.write_u16_replicated(tmp) {}
-        //     }
-        //     while !iface.tx.is_empty() {}
-        //     Ok(())
-        // }
-        DataFormat::U16BEIter(iter) => {
-            iface.transfer_16bit_mode(|tx, streamer| {
-                let txx: Tx<(P, SM2), HalfWord> = streamer.stream(tx, iter);
-                return txx;
-            });
-
-            Ok(())
-        }
-        _ => Err(DisplayError::DataFormatNotImplemented),
     }
 }
