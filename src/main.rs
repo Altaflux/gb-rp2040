@@ -4,11 +4,14 @@
 #![no_std]
 #![no_main]
 
+use core::u16;
+
 use alloc::boxed::Box;
 use alloc::vec::Vec;
 use defmt::*;
 use defmt_rtt as _;
 
+use embedded_hal::delay::DelayNs;
 use embedded_sdmmc::{SdCard, VolumeManager};
 use gameboy::display::{GameVideoIter, GameboyLineBufferDisplay};
 //use i2s::I2sPioInterface;
@@ -37,6 +40,7 @@ mod clocks;
 mod dma_transfer;
 mod gameboy;
 //mod i2s;
+mod display;
 mod i2s2;
 mod pio_interface;
 mod rp_hal;
@@ -59,7 +63,7 @@ static ALLOCATOR: Heap = Heap::empty();
 fn main() -> ! {
     {
         use core::mem::MaybeUninit;
-        const HEAP_SIZE: usize = 190002;
+        const HEAP_SIZE: usize = 180000;
         //const HEAP_SIZE: usize = 220000;
         static mut HEAP: [MaybeUninit<u8>; HEAP_SIZE] = [MaybeUninit::uninit(); HEAP_SIZE];
         unsafe { ALLOCATOR.init(HEAP.as_ptr() as usize, HEAP_SIZE) }
@@ -119,7 +123,7 @@ fn main() -> ! {
     let _ = pins.gpio9.into_function::<hal::gpio::FunctionPio0>();
     let _ = pins.gpio10.into_function::<hal::gpio::FunctionPio0>();
 
-    let (mut pio_0, sm0_0, _, _, _) = pac.PIO0.split(&mut pac.RESETS);
+    let (mut pio_0, sm0_0, sm0_1, _, _) = pac.PIO0.split(&mut pac.RESETS);
 
     let (mut pio_1, sm_1_0, _, _, _) = pac.PIO1.split(&mut pac.RESETS);
 
@@ -167,37 +171,52 @@ fn main() -> ! {
     let cartridge = gb_rom.into_cartridge();
 
     ///////////////////////////////
-    let spi_sclk: hal::gpio::Pin<_, _, hal::gpio::PullDown> =
-        pins.gpio14.into_function::<hal::gpio::FunctionSpi>();
-    let spi_mosi: hal::gpio::Pin<_, _, hal::gpio::PullDown> =
-        pins.gpio15.into_function::<hal::gpio::FunctionSpi>(); //tx
-    let spi_miso: hal::gpio::Pin<_, _, hal::gpio::PullDown> =
-        pins.gpio12.into_function::<hal::gpio::FunctionSpi>(); //rx
-    let spi_screen = spi::Spi::<_, _, _, 8>::new(pac.SPI1, (spi_mosi, spi_miso, spi_sclk));
+    // let spi_sclk: hal::gpio::Pin<_, _, hal::gpio::PullDown> =
+    //     pins.gpio14.into_function::<hal::gpio::FunctionSpi>();
+    // let spi_mosi: hal::gpio::Pin<_, _, hal::gpio::PullDown> =
+    //     pins.gpio15.into_function::<hal::gpio::FunctionSpi>(); //tx
+    // let spi_miso: hal::gpio::Pin<_, _, hal::gpio::PullDown> =
+    //     pins.gpio12.into_function::<hal::gpio::FunctionSpi>(); //rx
+    // let spi_screen = spi::Spi::<_, _, _, 8>::new(pac.SPI1, (spi_mosi, spi_miso, spi_sclk));
     let screen_dc: hal::gpio::Pin<
         hal::gpio::bank0::Gpio11,
         hal::gpio::FunctionSio<hal::gpio::SioOutput>,
         hal::gpio::PullDown,
     > = pins.gpio11.into_push_pull_output();
-    let spi_screen = spi_screen.init(
-        &mut pac.RESETS,
-        clocks.peripheral_clock.freq(),
-        80.MHz(), // card initialization happens at low baud rate
-        embedded_hal::spi::MODE_0,
-    );
+    // let spi_screen = spi_screen.init(
+    //     &mut pac.RESETS,
+    //     clocks.peripheral_clock.freq(),
+    //     80.MHz(), // card initialization happens at low baud rate
+    //     embedded_hal::spi::MODE_0,
+    // );
 
-    let exclusive_screen_spi =
-        spi_device::ExclusiveDevice::new(spi_screen, DummyOutputPin, timer).unwrap();
-    let spi_display_interface =
-        display_interface_spi::SPIInterface::new(exclusive_screen_spi, screen_dc);
-    /////////////
+    // let exclusive_screen_spi =
+    //     spi_device::ExclusiveDevice::new(spi_screen, DummyOutputPin, timer).unwrap();
+    // let spi_display_interface =
+    //     display_interface_spi::SPIInterface::new(exclusive_screen_spi, screen_dc);
+
+    let spi_sclk: hal::gpio::Pin<_, _, hal::gpio::PullDown> =
+        pins.gpio14.into_function::<hal::gpio::FunctionPio0>();
+    let spi_mosi: hal::gpio::Pin<_, _, hal::gpio::PullDown> =
+        pins.gpio15.into_function::<hal::gpio::FunctionPio0>();
+
+    let pio_spi_interface = display::spi_pio_16::SpiPioInterfaceMultiBit::new(
+        3,
+        screen_dc,
+        &mut pio_0,
+        sm0_1,
+        sm0_0,
+        spi_sclk.id().num,
+        spi_mosi.id().num,
+    );
+    // /////////////
 
     ///////////////////////////////
-    let interface =
-        pio_interface::PioInterface::new(3, rs, &mut pio_0, sm0_0, rw.id().num, (3, 10), endianess);
+    // let interface =
+    //     pio_interface::PioInterface::new(3, rs, &mut pio_0, sm0_0, rw.id().num, (3, 10), endianess);
 
     let mut display = ili9341::Ili9341::new_orig(
-        spi_display_interface,
+        pio_spi_interface,
         DummyOutputPin,
         &mut timer,
         ili9341::Orientation::Landscape,
@@ -264,22 +283,23 @@ fn main() -> ! {
     const SCREEN_HEIGHT: usize =
         (<DisplaySize240x320 as DisplaySize>::HEIGHT as f32 / 1.0f32) as usize;
 
-    let spare: &'static mut [u8] =
-        cortex_m::singleton!(: Vec<u8>  = alloc::vec![0; SCREEN_WIDTH * 4 ])
+    let spare: &'static mut [u16] =
+        cortex_m::singleton!(: Vec<u16>  = alloc::vec![0; SCREEN_WIDTH * 4 ])
             .unwrap()
             .as_mut_slice();
 
-    let dm_spare: &'static mut [u8] =
-        cortex_m::singleton!(: Vec<u8>  = alloc::vec![0; SCREEN_WIDTH * 4 ])
+    let dm_spare: &'static mut [u16] =
+        cortex_m::singleton!(: Vec<u16>  = alloc::vec![0; SCREEN_WIDTH * 4 ])
             .unwrap()
             .as_mut_slice();
-    let dm_spare2: &'static mut [u8] =
-        cortex_m::singleton!(: Vec<u8>  = alloc::vec![0; SCREEN_WIDTH * 4 ])
+    let dm_spare2: &'static mut [u16] =
+        cortex_m::singleton!(: Vec<u16>  = alloc::vec![0; SCREEN_WIDTH * 4 ])
             .unwrap()
             .as_mut_slice();
     let mut streamer = stream_display::Streamer::new(dma.ch0, dma.ch1, dm_spare, spare, dm_spare2);
     let scaler: scaler::ScreenScaler<144, 160, { SCREEN_WIDTH }, { SCREEN_HEIGHT }> =
         scaler::ScreenScaler::new();
+
     let mut loop_counter: usize = 0;
     loop {
         let start_time = timer.get_counter();
@@ -291,23 +311,24 @@ fn main() -> ! {
                 (SCREEN_WIDTH - 1) as u16,
                 // (160 - 1) as u16,
                 // (144 - 1) as u16,
-                |iface| {
-                    let (mut sp, dc) = iface.release();
-                    sp = sp.share_bus(|bus| {
-                        streamer.stream::<_, _, _, _, 2>(
-                            bus,
+                |mut iface| {
+                    // let (mut sp, dc) = iface.release();
+                    // sp = sp.share_bus(|bus| {
+                    //     streamer.stream::<_, _, _, _, 2>(
+                    //         bus,
+                    //         &mut scaler.scale_iterator(GameVideoIter::new(&mut gameboy)),
+                    //         |d| d.to_be_bytes(),
+                    //     )
+                    // });
+                    // display_interface_spi::SPIInterface::new(sp, dc)
+                    iface.transfer_16bit_mode(|sm| {
+                        streamer.stream::<_, _, _, _, 1>(
+                            sm,
                             &mut scaler.scale_iterator(GameVideoIter::new(&mut gameboy)),
-                            |d| d.to_be_bytes(),
+                            |d| [d],
                         )
                     });
-                    display_interface_spi::SPIInterface::new(sp, dc)
-                    // iface.transfer_16bit_mode(|sm| {
-                    //     streamer.stream::<_, _, _, _, 1>(
-                    //         sm,
-                    //         &mut scaler.scale_iterator(GameVideoIter::new(&mut gameboy)),
-                    //         |d| [d],
-                    //     )
-                    // })
+                    iface
                 },
             )
             .unwrap();
@@ -332,5 +353,22 @@ const fn endianess(be: bool, val: u16) -> u16 {
         val.to_le()
     } else {
         val.to_be()
+    }
+}
+
+#[inline(always)]
+const fn endianess_spi(be: bool, val: u16) -> u16 {
+    if be {
+        val.to_le()
+    } else {
+        val.to_be()
+    }
+}
+struct InfiniteIter;
+impl Iterator for InfiniteIter {
+    type Item = u16;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        Some(u16::MAX / 2)
     }
 }

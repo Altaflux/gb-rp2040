@@ -9,7 +9,7 @@ type Result = core::result::Result<(), DisplayError>;
 use hal::dma::Byte;
 pub struct PioInterface<RS, P: PIOExt, SM: StateMachineIndex, END> {
     sm: StateMachine<(P, SM), Running>,
-    tx: Tx<(P, SM), HalfWord>,
+    tx: Option<Tx<(P, SM), HalfWord>>,
     rx: Rx<(P, SM)>,
     labels: PIOLabelDefines,
     rs: RS,
@@ -75,7 +75,7 @@ where
             rs: rs,
             sm: video_sm.start(),
             rx: rx,
-            tx: vid_tx.transfer_size(HalfWord),
+            tx: Some(vid_tx.transfer_size(HalfWord)),
             labels: labels,
             endian_function: endianess,
         }
@@ -104,14 +104,14 @@ where
         self.sm.exec_instruction(instruction);
     }
 
-    pub fn transfer_16bit_mode<F>(mut self, mut callback: F) -> Self
+    pub fn transfer_16bit_mode<F>(&mut self, mut callback: F)
     where
         F: FnMut(Tx<(P, SM), HalfWord>) -> Tx<(P, SM), HalfWord>,
     {
         self.set_16bit_mode();
-        let interface = (callback)(self.tx);
-        self.tx = interface;
-        self
+        let tx = core::mem::replace(&mut self.tx, None);
+        let interface = (callback)(tx.unwrap());
+        self.tx = Some(interface);
     }
 
     pub fn transfer_8bit_mode<F>(mut self, mut callback: F) -> Self
@@ -119,13 +119,14 @@ where
         F: FnMut(Tx<(P, SM), Byte>) -> Tx<(P, SM), Byte>,
     {
         self.set_8bit_mode();
-        let interface = (callback)(self.tx.transfer_size(Byte));
-        self.tx = interface.transfer_size(HalfWord);
+        let tx = core::mem::replace(&mut self.tx, None);
+        let interface = (callback)(tx.unwrap().transfer_size(Byte));
+        self.tx = Some(interface.transfer_size(HalfWord));
         self
     }
 
     pub fn free(self, pio: &mut PIO<P>) -> (UninitStateMachine<(P, SM)>, RS) {
-        let (sm, prg) = self.sm.uninit(self.rx, self.tx);
+        let (sm, prg) = self.sm.uninit(self.rx, self.tx.unwrap());
         pio.uninstall(prg);
         (sm, self.rs)
     }
@@ -170,62 +171,70 @@ where
     match words {
         DataFormat::U8(slice) => {
             iface.set_8bit_mode();
+            let tx = iface.tx.as_mut().unwrap();
             for i in slice {
-                while !iface.tx.write(*i as u32) {}
+                while !tx.write(*i as u32) {}
             }
-            while !iface.tx.is_empty() {}
+            while !iface.tx.as_mut().unwrap().is_empty() {}
             Ok(())
         }
         DataFormat::U16(slice) => {
             iface.set_16bit_mode();
+            let tx = iface.tx.as_mut().unwrap();
             for i in slice {
                 let tmp = (*i) as u32;
-                while !iface.tx.write(tmp) {}
+                while !tx.write(tmp) {}
             }
-            while !iface.tx.is_empty() {}
+            while !tx.is_empty() {}
             Ok(())
         }
         DataFormat::U16BE(slice) => {
             iface.set_16bit_mode();
+            let tx = iface.tx.as_mut().unwrap();
             for i in slice {
                 let tmp = (iface.endian_function)(true, *i) as u32;
-                while !iface.tx.write(tmp) {}
+                while !tx.write(tmp) {}
             }
-            while !iface.tx.is_empty() {}
+            while !tx.is_empty() {}
             Ok(())
         }
         DataFormat::U16LE(slice) => {
+            iface.set_16bit_mode();
+            let tx = iface.tx.as_mut().unwrap();
             for i in slice {
                 let tmp = (iface.endian_function)(false, *i) as u32;
-                while !iface.tx.write(tmp) {}
+                while !tx.write(tmp) {}
             }
-            while !iface.tx.is_empty() {}
+            while !tx.is_empty() {}
             Ok(())
         }
         DataFormat::U8Iter(iter) => {
             iface.set_8bit_mode();
+            let tx = iface.tx.as_mut().unwrap();
             for i in iter {
-                while !iface.tx.write(i as u32) {}
+                while !tx.write(i as u32) {}
             }
-            while !iface.tx.is_empty() {}
+            while !tx.is_empty() {}
             Ok(())
         }
         DataFormat::U16BEIter(iter) => {
             iface.set_16bit_mode();
+            let tx = iface.tx.as_mut().unwrap();
             for i in iter {
                 let tmp = (iface.endian_function)(true, i) as u32;
-                while !iface.tx.write(tmp) {}
+                while !tx.write(tmp) {}
             }
-            while !iface.tx.is_empty() {}
+            while !tx.is_empty() {}
             Ok(())
         }
         DataFormat::U16LEIter(iter) => {
             iface.set_16bit_mode();
+            let tx = iface.tx.as_mut().unwrap();
             for i in iter {
                 let tmp = (iface.endian_function)(false, i) as u32;
-                while !iface.tx.write(tmp) {}
+                while !tx.write(tmp) {}
             }
-            while !iface.tx.is_empty() {}
+            while !tx.is_empty() {}
             Ok(())
         }
         _ => Err(DisplayError::DataFormatNotImplemented),
