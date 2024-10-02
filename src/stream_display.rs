@@ -63,7 +63,7 @@ where
 
         sm
     }
-
+    #[inline(always)]
     pub fn compute_line<T: LineTransfer<Item = DO>>(
         mut transfer: T,
         mut buffer: &'static mut [DO],

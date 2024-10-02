@@ -1,5 +1,5 @@
 use crate::hal::timer::Instant;
-use alloc::boxed::Box;
+
 use gb_core::{gameboy::GameBoy, hardware::Screen};
 const NANOS_IN_VSYNC: u64 = ((1.0 / 60.0) * 1000000000.0) as u64;
 pub struct GameboyLineBufferDisplay {

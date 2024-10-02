@@ -316,50 +316,50 @@ fn main() -> ! {
     let mut loop_counter: usize = 0;
     loop {
         let start_time = timer.get_counter();
-        display = display
-            .async_transfer_mode(
-                0,
-                0,
-                (SCREEN_HEIGHT - 1) as u16,
-                (SCREEN_WIDTH - 1) as u16,
-                // (160 - 1) as u16,
-                // (144 - 1) as u16,
-                |mut iface| {
-                    ///////////////////
-                    // iface.transfer_16bit_mode(|sm| {
-                    //     streamer.stream::<_>(
-                    //         sm,
-                    //         &mut scaler.scale_iterator(GameVideoIter::new(&mut gameboy)),
-                    //     )
-                    // });
-                    ///////////////////
-                    iface.iterator_16bit_mode(
-                        &mut scaler.scale_iterator(GameVideoIter::new(&mut gameboy)),
-                    );
-                    ///////////////////
-                    // iface.transfer_16bit_mode_two(|sm, mut streamer| {
-                    //     let old_sm = streamer.stream::<_>(
-                    //         sm,
-                    //         &mut scaler.scale_iterator(GameVideoIter::new(&mut gameboy)),
-                    //     );
-                    //     (old_sm, streamer)
-                    // });
-                    ///////////////////
-                    iface
-                },
-            )
-            .unwrap();
-        // display
-        //     .draw_raw_iter(
+        // display = display
+        //     .async_transfer_mode(
         //         0,
         //         0,
         //         (SCREEN_HEIGHT - 1) as u16,
         //         (SCREEN_WIDTH - 1) as u16,
-        //         &mut scaler.scale_iterator(GameVideoIter::new(&mut gameboy)),
+        //         // (160 - 1) as u16,
+        //         // (144 - 1) as u16,
+        //         |mut iface| {
+        //             ///////////////////
+        //             // iface.transfer_16bit_mode(|sm| {
+        //             //     streamer.stream::<_>(
+        //             //         sm,
+        //             //         &mut scaler.scale_iterator(GameVideoIter::new(&mut gameboy)),
+        //             //     )
+        //             // });
+        //             ///////////////////
+        //             iface.iterator_16bit_mode(
+        //                 &mut scaler.scale_iterator(GameVideoIter::new(&mut gameboy)),
+        //             );
+        //             ///////////////////
+        //             // iface.transfer_16bit_mode_two(|sm, mut streamer| {
+        //             //     let old_sm = streamer.stream::<_>(
+        //             //         sm,
+        //             //         &mut scaler.scale_iterator(GameVideoIter::new(&mut gameboy)),
+        //             //     );
+        //             //     (old_sm, streamer)
+        //             // });
+        //             ///////////////////
+        //             iface
+        //         },
         //     )
         //     .unwrap();
+        display
+            .draw_raw_iter(
+                0,
+                0,
+                (SCREEN_HEIGHT - 1) as u16,
+                (SCREEN_WIDTH - 1) as u16,
+                scaler.scale_iterator(GameVideoIter::new(&mut gameboy)),
+            )
+            .unwrap();
 
-        let end_time = timer.get_counter();
+        let end_time: rp2040_hal::fugit::Instant<u64, 1, 1000000> = timer.get_counter();
         let diff = end_time - start_time;
         let milliseconds = diff.to_millis();
         info!(
