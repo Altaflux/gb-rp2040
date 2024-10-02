@@ -18,7 +18,6 @@ use defmt::*;
 use defmt_rtt as _;
 
 pub struct SpiPioInterfaceMultiBitDma<
-    'a,
     RS,
     P: PIOExt,
     SM1: StateMachineIndex,
@@ -26,7 +25,7 @@ pub struct SpiPioInterfaceMultiBitDma<
     CH1,
     CH2,
 > {
-    streamer: &'a mut Streamer<CH1, CH2, u16>,
+    streamer: Streamer<CH1, CH2, u16>,
     mode: Option<PioMode<P, SM1, SM2>>,
     rs: RS,
 }
@@ -51,7 +50,7 @@ struct PioContainer<P: PIOExt, SM: StateMachineIndex, TxSize, State> {
     tx: Tx<(P, SM), TxSize>,
     rx: Rx<(P, SM)>,
 }
-impl<'a, RS, P, SM1, SM2, CH1, CH2> SpiPioInterfaceMultiBitDma<'a, RS, P, SM1, SM2, CH1, CH2>
+impl<RS, P, SM1, SM2, CH1, CH2> SpiPioInterfaceMultiBitDma<RS, P, SM1, SM2, CH1, CH2>
 where
     P: PIOExt,
     SM1: StateMachineIndex,
@@ -68,7 +67,7 @@ where
         sm2: UninitStateMachine<(P, SM2)>,
         clk: u8,
         tx: u8,
-        streamer: &'a mut Streamer<CH1, CH2, u16>,
+        streamer: Streamer<CH1, CH2, u16>,
     ) -> Self {
         let video_program =
             pio_proc::pio_asm!(".side_set 1 ", "out pins, 1 side 0 ", "nop side 1",);
@@ -347,8 +346,8 @@ where
     }
 }
 
-impl<'a, RS, P, SM1, SM2, CH1: SingleChannel, CH2: SingleChannel> WriteOnlyDataCommand
-    for SpiPioInterfaceMultiBitDma<'a, RS, P, SM1, SM2, CH1, CH2>
+impl<RS, P, SM1, SM2, CH1: SingleChannel, CH2: SingleChannel> WriteOnlyDataCommand
+    for SpiPioInterfaceMultiBitDma<RS, P, SM1, SM2, CH1, CH2>
 where
     P: PIOExt,
     SM1: StateMachineIndex,

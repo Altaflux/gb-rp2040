@@ -221,7 +221,7 @@ fn main() -> ! {
         cortex_m::singleton!(: [u16;SCREEN_WIDTH * 3]  = [0u16; SCREEN_WIDTH * 3 ])
             .unwrap()
             .as_mut_slice();
-    let mut streamer = stream_display::Streamer::new(dma.ch0, dma.ch1, dm_spare, spare, dm_spare2);
+    let streamer = stream_display::Streamer::new(dma.ch0, dma.ch1, dm_spare, spare, dm_spare2);
 
     // let pio_spi_interface = display::spi_pio_16::SpiPioInterfaceMultiBit::new(
     //     3,
@@ -241,7 +241,7 @@ fn main() -> ! {
         sm0_0,
         spi_sclk.id().num,
         spi_mosi.id().num,
-        &mut streamer,
+        streamer,
     );
     ///////////////////////////////
     // let interface =
