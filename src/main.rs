@@ -322,10 +322,9 @@ fn main() -> ! {
                     // });
                     // display_interface_spi::SPIInterface::new(sp, dc)
                     iface.transfer_16bit_mode(|sm| {
-                        streamer.stream::<_, _, _, _, 1>(
+                        streamer.stream::<_, _>(
                             sm,
                             &mut scaler.scale_iterator(GameVideoIter::new(&mut gameboy)),
-                            |d| [d],
                         )
                     });
                     iface

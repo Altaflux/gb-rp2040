@@ -37,17 +37,11 @@ where
         }
     }
 
-    pub fn stream<I, TO, F, DI, const TS: usize>(
-        &mut self,
-        tx: TO,
-        iterator: &mut I,
-        transformer: F,
-    ) -> TO
+    pub fn stream<I, TO>(&mut self, tx: TO, iterator: &mut I) -> TO
     where
         DO: Word + Copy,
         TO: WriteTarget<TransmittedWord = DO> + EndlessWriteTarget,
-        I: Iterator<Item = DI>,
-        F: Fn(DI) -> [DO; TS],
+        I: Iterator<Item = DO>,
     {
         let channel1 = core::mem::replace(&mut self.dma_channel1, None).unwrap();
         let channel2 = core::mem::replace(&mut self.dma_channel2, None).unwrap();
@@ -57,7 +51,7 @@ where
         let stream =
             dma_transfer::DmaTransfer::new(channel1, channel2, tx, main_buffer, spare_buffer2);
 
-        let sh = ScreenHandler::new(iterator, stream, spare_buffer, transformer);
+        let sh = ScreenHandler::new(iterator, stream, spare_buffer);
         let (stream, spare_buffer) = sh.compute_line();
 
         let (channel1, channel2, sm, main_buffer, spare_buffer2) = stream.free();
