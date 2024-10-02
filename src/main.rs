@@ -205,15 +205,6 @@ fn main() -> ! {
     let spi_mosi: hal::gpio::Pin<_, _, hal::gpio::PullDown> =
         pins.gpio15.into_function::<hal::gpio::FunctionPio0>();
 
-    let pio_spi_interface = display::spi_pio_16::SpiPioInterfaceMultiBit::new(
-        3,
-        screen_dc,
-        &mut pio_0,
-        sm0_1,
-        sm0_0,
-        spi_sclk.id().num,
-        spi_mosi.id().num,
-    );
     // /////////////
     //////////DMA
 
@@ -232,6 +223,26 @@ fn main() -> ! {
             .as_mut_slice();
     let mut streamer = stream_display::Streamer::new(dma.ch0, dma.ch1, dm_spare, spare, dm_spare2);
 
+    let pio_spi_interface = display::spi_pio_16::SpiPioInterfaceMultiBit::new(
+        3,
+        screen_dc,
+        &mut pio_0,
+        sm0_1,
+        sm0_0,
+        spi_sclk.id().num,
+        spi_mosi.id().num,
+    );
+
+    // let pio_spi_interface = display::spi_pio_16_dma::SpiPioInterfaceMultiBitDma::new(
+    //     3,
+    //     screen_dc,
+    //     &mut pio_0,
+    //     sm0_1,
+    //     sm0_0,
+    //     spi_sclk.id().num,
+    //     spi_mosi.id().num,
+    //     streamer,
+    // );
     ///////////////////////////////
     // let interface =
     //     pio_interface::PioInterface::new(3, rs, &mut pio_0, sm0_0, rw.id().num, (3, 10), endianess);
@@ -314,25 +325,39 @@ fn main() -> ! {
                 // (160 - 1) as u16,
                 // (144 - 1) as u16,
                 |mut iface| {
-                    // let (mut sp, dc) = iface.release();
-                    // sp = sp.share_bus(|bus| {
-                    //     streamer.stream::<_, _, _, _, 2>(
-                    //         bus,
-                    //         &mut scaler.scale_iterator(GameVideoIter::new(&mut gameboy)),
-                    //         |d| d.to_be_bytes(),
-                    //     )
-                    // });
-                    // display_interface_spi::SPIInterface::new(sp, dc)
+                    ///////////////////
                     iface.transfer_16bit_mode(|sm| {
                         streamer.stream::<_>(
                             sm,
                             &mut scaler.scale_iterator(GameVideoIter::new(&mut gameboy)),
                         )
                     });
+                    ///////////////////
+                    // iface.iterator_16bit_mode(
+                    //     &mut scaler.scale_iterator(GameVideoIter::new(&mut gameboy)),
+                    // );
+                    ///////////////////
+                    // iface.transfer_16bit_mode_two(|sm, mut streamer| {
+                    //     let old_sm = streamer.stream::<_>(
+                    //         sm,
+                    //         &mut scaler.scale_iterator(GameVideoIter::new(&mut gameboy)),
+                    //     );
+                    //     (old_sm, streamer)
+                    // });
+                    ///////////////////
                     iface
                 },
             )
             .unwrap();
+        // display
+        //     .draw_raw_iter(
+        //         0,
+        //         0,
+        //         (SCREEN_HEIGHT - 1) as u16,
+        //         (SCREEN_WIDTH - 1) as u16,
+        //         &mut scaler.scale_iterator(GameVideoIter::new(&mut gameboy)),
+        //     )
+        //     .unwrap();
 
         let end_time = timer.get_counter();
         let diff = end_time - start_time;

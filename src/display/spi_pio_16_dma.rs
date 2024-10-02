@@ -1,5 +1,9 @@
+use core::cell::RefCell;
+
 use crate::rp_hal::hal;
+use crate::stream_display::Streamer;
 use display_interface::{DataFormat, DisplayError, WriteOnlyDataCommand};
+use embedded_dma::Word;
 use embedded_hal::digital::OutputPin;
 use hal::dma::HalfWord;
 use hal::pio::{PIOExt, PIO};
@@ -7,9 +11,17 @@ use hal::pio::{Running, StateMachine, StateMachineIndex, Tx};
 use hal::pio::{Rx, UninitStateMachine};
 type Result = core::result::Result<(), DisplayError>;
 use hal::dma::Byte;
+use rp2040_hal::dma::SingleChannel;
 use rp2040_hal::pio::Stopped;
-pub struct SpiPioInterfaceMultiBitDma<RS, P: PIOExt, SM1: StateMachineIndex, SM2: StateMachineIndex>
-{
+pub struct SpiPioInterfaceMultiBitDma<
+    RS,
+    P: PIOExt,
+    SM1: StateMachineIndex,
+    SM2: StateMachineIndex,
+    CH1,
+    CH2,
+> {
+    streamer: Option<Streamer<CH1, CH2, u16>>,
     mode: Option<PioMode<P, SM1, SM2>>,
     rs: RS,
 }
@@ -34,12 +46,14 @@ struct PioContainer<P: PIOExt, SM: StateMachineIndex, TxSize, State> {
     tx: Tx<(P, SM), TxSize>,
     rx: Rx<(P, SM)>,
 }
-impl<RS, P, SM1, SM2> SpiPioInterfaceMultiBitDma<RS, P, SM1, SM2>
+impl<RS, P, SM1, SM2, CH1, CH2> SpiPioInterfaceMultiBitDma<RS, P, SM1, SM2, CH1, CH2>
 where
     P: PIOExt,
     SM1: StateMachineIndex,
     SM2: StateMachineIndex,
     RS: OutputPin,
+    CH1: SingleChannel,
+    CH2: SingleChannel,
 {
     pub fn new(
         clock_divider: u16,
@@ -49,6 +63,7 @@ where
         sm2: UninitStateMachine<(P, SM2)>,
         clk: u8,
         tx: u8,
+        streamer: Streamer<CH1, CH2, u16>,
     ) -> Self {
         let video_program =
             pio_proc::pio_asm!(".side_set 1 ", "out pins, 1 side 0 [1]", "nop side 1",);
@@ -95,6 +110,7 @@ where
             rx: rx_16b,
         };
         Self {
+            streamer: Some(streamer),
             rs,
             mode: Some(PioMode::ByteMode((byte_sm, half_word_sm))),
         }
@@ -102,14 +118,41 @@ where
 
     pub fn transfer_16bit_mode<F>(&mut self, mut callback: F)
     where
-        F: FnMut(Tx<(P, SM2), HalfWord>) -> Tx<(P, SM2), HalfWord>,
+        F: FnMut(Tx<(P, SM2), HalfWord>, &mut Streamer<CH1, CH2, u16>) -> Tx<(P, SM2), HalfWord>,
     {
         let pio_mode = core::mem::replace(&mut self.mode, None).unwrap();
         let (byte_sm, mut half_byte_sm) = Self::set_16bit_mode(pio_mode);
 
-        let interface = (callback)(half_byte_sm.tx);
+        let mut streamer = self.streamer.take().unwrap();
+        let interface = (callback)(half_byte_sm.tx, &mut streamer);
         half_byte_sm.tx = interface;
+        self.streamer = Some(streamer);
+        self.mode = Some(PioMode::HalfWordMode((byte_sm, half_byte_sm)));
+    }
 
+    pub fn transfer_16bit_mode_two<F>(&mut self, mut callback: F)
+    where
+        F: FnMut(
+            Tx<(P, SM2), HalfWord>,
+            Streamer<CH1, CH2, u16>,
+        ) -> (Tx<(P, SM2), HalfWord>, Streamer<CH1, CH2, u16>),
+    {
+        let pio_mode = core::mem::replace(&mut self.mode, None).unwrap();
+        let (byte_sm, mut half_byte_sm) = Self::set_16bit_mode(pio_mode);
+        let mut streamer = self.streamer.take().unwrap();
+        let interface = (callback)(half_byte_sm.tx, streamer);
+        half_byte_sm.tx = interface.0;
+        self.streamer = Some(interface.1);
+        self.mode = Some(PioMode::HalfWordMode((byte_sm, half_byte_sm)));
+    }
+
+    pub fn iterator_16bit_mode(&mut self, iterator: &mut dyn Iterator<Item = u16>) {
+        let pio_mode = core::mem::replace(&mut self.mode, None).unwrap();
+        let (byte_sm, mut half_byte_sm) = Self::set_16bit_mode(pio_mode);
+
+        let mut streamer = self.streamer.take().unwrap();
+        half_byte_sm.tx = streamer.stream(half_byte_sm.tx, iterator);
+        self.streamer = Some(streamer);
         self.mode = Some(PioMode::HalfWordMode((byte_sm, half_byte_sm)));
     }
 
@@ -201,7 +244,8 @@ where
     // }
 }
 
-impl<RS, P, SM1, SM2> WriteOnlyDataCommand for SpiPioInterfaceMultiBitDma<RS, P, SM1, SM2>
+impl<RS, P, SM1, SM2, CH1: SingleChannel, CH2: SingleChannel> WriteOnlyDataCommand
+    for SpiPioInterfaceMultiBitDma<RS, P, SM1, SM2, CH1, CH2>
 where
     P: PIOExt,
     SM1: StateMachineIndex,
@@ -221,8 +265,8 @@ where
     }
 }
 
-fn send_data<RS, P, SM1, SM2>(
-    iface: &mut SpiPioInterfaceMultiBitDma<RS, P, SM1, SM2>,
+fn send_data<RS, P, SM1, SM2, CH1: SingleChannel, CH2: SingleChannel>(
+    iface: &mut SpiPioInterfaceMultiBitDma<RS, P, SM1, SM2, CH1, CH2>,
     words: DataFormat<'_>,
 ) -> Result
 where
@@ -282,12 +326,9 @@ where
         //     Ok(())
         // }
         DataFormat::U16BEIter(iter) => {
-            iface.transfer_16bit_mode(|mut tx| {
-                for i in &mut *iter {
-                    while !tx.write_u16_replicated(i) {}
-                }
-                while !tx.is_empty() {}
-                return tx;
+            iface.transfer_16bit_mode(|tx, streamer| {
+                let txx: Tx<(P, SM2), HalfWord> = streamer.stream(tx, iter);
+                return txx;
             });
 
             Ok(())

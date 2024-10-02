@@ -3,7 +3,7 @@ use alloc::boxed::Box;
 use gb_core::{gameboy::GameBoy, hardware::Screen};
 const NANOS_IN_VSYNC: u64 = ((1.0 / 60.0) * 1000000000.0) as u64;
 pub struct GameboyLineBufferDisplay {
-    pub line_buffer: Box<[u16; 160]>,
+    pub line_buffer: [u16; 160],
     pub line_complete: bool,
     pub turn_off: bool,
     time_counter: Instant,
@@ -13,7 +13,7 @@ pub struct GameboyLineBufferDisplay {
 impl GameboyLineBufferDisplay {
     pub fn new(delay: crate::hal::Timer) -> Self {
         Self {
-            line_buffer: Box::new([0; 160]),
+            line_buffer: [0; 160],
             line_complete: false,
             turn_off: false,
             time_counter: delay.get_counter(),
