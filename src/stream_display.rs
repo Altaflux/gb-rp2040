@@ -1,4 +1,4 @@
-use crate::array_scaler::ScreenHandler;
+use crate::array_scaler::LineTransfer;
 use crate::hal::dma::WriteTarget;
 
 use crate::dma_transfer;
@@ -37,11 +37,10 @@ where
         }
     }
 
-    pub fn stream<I, TO>(&mut self, tx: TO, iterator: &mut I) -> TO
+    pub fn stream<TO>(&mut self, tx: TO, iterator: &mut dyn Iterator<Item = DO>) -> TO
     where
         DO: Word + Copy,
         TO: WriteTarget<TransmittedWord = DO> + EndlessWriteTarget,
-        I: Iterator<Item = DO>,
     {
         let channel1 = core::mem::replace(&mut self.dma_channel1, None).unwrap();
         let channel2 = core::mem::replace(&mut self.dma_channel2, None).unwrap();
@@ -51,8 +50,7 @@ where
         let stream =
             dma_transfer::DmaTransfer::new(channel1, channel2, tx, main_buffer, spare_buffer2);
 
-        let sh = ScreenHandler::new(iterator, stream, spare_buffer);
-        let (stream, spare_buffer) = sh.compute_line();
+        let (stream, spare_buffer) = Self::compute_line(stream, spare_buffer, iterator);
 
         let (channel1, channel2, sm, main_buffer, spare_buffer2) = stream.free();
 
@@ -63,5 +61,24 @@ where
         self.dma_channel2 = Some(channel2);
 
         sm
+    }
+
+    pub fn compute_line<T: LineTransfer<Item = DO>>(
+        mut transfer: T,
+        mut buffer: &'static mut [DO],
+        iterator: &mut dyn Iterator<Item = DO>,
+    ) -> (T, &'static mut [DO]) {
+        let mut width_position = 0;
+        for pixel in iterator {
+            let out = pixel;
+            buffer[width_position] = out;
+            width_position += 1;
+            if width_position == buffer.len() {
+                buffer = transfer.send_scanline(buffer);
+                width_position = 0;
+            }
+        }
+
+        (transfer, buffer)
     }
 }
