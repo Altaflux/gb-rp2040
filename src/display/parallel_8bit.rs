@@ -206,7 +206,7 @@ where
             iface.set_16bit_mode();
             let tx = iface.tx.as_mut().unwrap();
             for i in slice {
-                let tmp = (iface.endian_function)(true, *i) as u32;
+                let tmp = (*i).to_be() as u32;
                 while !tx.write(tmp) {}
             }
             while !tx.is_empty() {}
@@ -216,7 +216,7 @@ where
             iface.set_16bit_mode();
             let tx = iface.tx.as_mut().unwrap();
             for i in slice {
-                let tmp = (iface.endian_function)(false, *i) as u32;
+                let tmp = (*i).to_le() as u32;
                 while !tx.write(tmp) {}
             }
             while !tx.is_empty() {}
@@ -232,14 +232,14 @@ where
         DataFormat::U16BEIter(iter) => {
             iface.set_16bit_mode();
             let tx = iface.tx.take().unwrap();
-            let tx = iface.streamer.stream_16b(tx, iter, u16::to_le);
+            let tx = iface.streamer.stream_16b(tx, iter, u16::to_be);
             iface.tx = Some(tx);
             Ok(())
         }
         DataFormat::U16LEIter(iter) => {
             iface.set_16bit_mode();
             let tx = iface.tx.take().unwrap();
-            let tx = iface.streamer.stream_16b(tx, iter, u16::to_be);
+            let tx = iface.streamer.stream_16b(tx, iter, u16::to_le);
             iface.tx = Some(tx);
             Ok(())
         }

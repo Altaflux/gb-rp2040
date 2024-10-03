@@ -44,14 +44,15 @@ where
         buffer: &'static mut [T],
         buffer2: &'static mut [T],
     ) -> Self {
-        let cfg = Config::new(
+        let mut cfg = Config::new(
             (dma_channel, dma_channel2),
             LimitingArrayReadTarget::new(buffer, 0),
             tx,
-        )
-        .start();
+        );
+        cfg.bswap(true);
+
         Self {
-            dma: (Some(DmaState::IDLE(cfg))),
+            dma: (Some(DmaState::IDLE(cfg.start()))),
             second_buffer: Some(LimitingArrayReadTarget::new(buffer2, 0)),
         }
     }

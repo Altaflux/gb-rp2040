@@ -13,7 +13,7 @@ use defmt_rtt as _;
 
 use embedded_graphics::pixelcolor::raw::RawU16;
 use embedded_graphics::pixelcolor::Rgb565;
-use embedded_graphics::prelude::{Point, RgbColor, Size, WebColors};
+use embedded_graphics::prelude::{IntoStorage, Point, RgbColor, Size, WebColors};
 use embedded_graphics::primitives::Rectangle;
 use embedded_hal::delay::DelayNs;
 use embedded_sdmmc::{SdCard, VolumeManager};
@@ -409,6 +409,6 @@ impl Iterator for InfiniteIter {
     type Item = u16;
 
     fn next(&mut self) -> Option<Self::Item> {
-        Some(u16::MAX / 2)
+        Some(Rgb565::GREEN.into_storage())
     }
 }
