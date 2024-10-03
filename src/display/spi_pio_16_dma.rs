@@ -69,8 +69,7 @@ where
         tx: u8,
         streamer: Streamer<CH1, CH2>,
     ) -> Self {
-        let video_program =
-            pio_proc::pio_asm!(".side_set 1 ", "out pins, 1 side 0 [1]", "nop side 1[1]",);
+        let video_program = pio_proc::pio_asm!(".side_set 1 ", "out pins, 1 side 0", "nop side 1",);
 
         let video_program_installed = pio.install(&video_program.program).unwrap();
         let (mut sm_8b, rx_8b, tx_8b) =
@@ -176,13 +175,13 @@ where
 
     pub fn transfer_16bit_mode<F>(&mut self, mut callback: F)
     where
-        F: FnMut(Tx<(P, SM1), Byte>) -> Tx<(P, SM1), Byte>,
+        F: FnMut(Tx<(P, SM1), HalfWord>) -> Tx<(P, SM1), HalfWord>,
     {
         let pio_mode = core::mem::replace(&mut self.mode, None).unwrap();
         let (mut byte_sm, half_byte_sm) = Self::set_16bit_mode(pio_mode);
 
-        let interface = (callback)(byte_sm.tx);
-        byte_sm.tx = interface;
+        let interface = (callback)(byte_sm.tx.transfer_size(HalfWord));
+        byte_sm.tx = interface.transfer_size(Byte);
 
         self.mode = Some(PioMode::HalfWordMode((byte_sm, half_byte_sm)));
     }
@@ -364,7 +363,7 @@ where
             DataFormat::U16BEIter(iter) => {
                 let pio_mode = core::mem::replace(&mut self.mode, None).unwrap();
                 let (byte_sm, mut half_byte_sm) = Self::set_16bit_mode(pio_mode);
-                half_byte_sm.tx = self.streamer.stream_16b(half_byte_sm.tx, iter, u16::to_be);
+                half_byte_sm.tx = self.streamer.stream_16b(half_byte_sm.tx, iter, u16::to_le);
                 self.mode = Some(PioMode::HalfWordMode((byte_sm, half_byte_sm)));
 
                 Ok(())
