@@ -5,6 +5,7 @@ use hal::clocks::ClockSource;
 use hal::Clock;
 use hal::{clocks::ClocksManager, pac, Watchdog};
 
+#[allow(dead_code)]
 pub fn configure_normal(
     xosc_crystal_freq: u32,
     xosc_dev: pac::XOSC,
@@ -27,7 +28,7 @@ pub fn configure_normal(
     .unwrap();
     Ok(clocks)
 }
-
+#[allow(dead_code)]
 pub const PLL_SYS_288MHZ: hal::pll::PLLConfig = hal::pll::PLLConfig {
     vco_freq: fugit::HertzU32::Hz(1440000000),
     refdiv: 1,
@@ -35,21 +36,21 @@ pub const PLL_SYS_288MHZ: hal::pll::PLLConfig = hal::pll::PLLConfig {
     post_div2: 1,
 };
 
-//FAILS
+#[allow(dead_code)]
 pub const PLL_SYS_308MHZ: hal::pll::PLLConfig = hal::pll::PLLConfig {
     vco_freq: fugit::HertzU32::Hz(924000000),
     refdiv: 1,
     post_div1: 3,
     post_div2: 1,
 };
-
+#[allow(dead_code)]
 pub const PLL_SYS_333MHZ: hal::pll::PLLConfig = hal::pll::PLLConfig {
     vco_freq: fugit::HertzU32::Hz(1332000000),
     refdiv: 1,
     post_div1: 4,
     post_div2: 1,
 };
-
+#[allow(dead_code)]
 pub const PLL_SYS_351MHZ: hal::pll::PLLConfig = hal::pll::PLLConfig {
     vco_freq: fugit::HertzU32::Hz(1404000000),
     refdiv: 1,

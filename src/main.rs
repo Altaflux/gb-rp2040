@@ -7,19 +7,14 @@
 use core::u16;
 
 use alloc::boxed::Box;
-use alloc::vec::Vec;
 use defmt::*;
 use defmt_rtt as _;
 
-use embedded_graphics::pixelcolor::raw::RawU16;
 use embedded_graphics::pixelcolor::Rgb565;
-use embedded_graphics::prelude::{IntoStorage, Point, RgbColor, Size, WebColors};
-use embedded_graphics::primitives::Rectangle;
-use embedded_hal::delay::DelayNs;
+use embedded_graphics::prelude::{IntoStorage, RgbColor};
 use embedded_sdmmc::{SdCard, VolumeManager};
 use gameboy::display::GameboyLineBufferDisplay;
-//use i2s::I2sPioInterface;
-use embedded_graphics_core::draw_target::DrawTarget;
+
 use gameboy::GameEmulationHandler;
 use hal::fugit::RateExtU32;
 
@@ -29,8 +24,7 @@ use panic_probe as _;
 use rp2040_hal::dma::DMAExt;
 use rp2040_hal::{self as hal, pio::PIOExt};
 use rp2040_hal::{entry, Clock};
-// #[allow(unused_imports)]
-// use rp_pico;
+
 extern crate alloc;
 // Provide an alias for our BSP so we can switch targets quickly.
 // Uncomment the BSP you included in Cargo.toml, the rest of the code does not need to change.
@@ -40,14 +34,10 @@ use embedded_alloc::Heap;
 use gb_core::gameboy::GameBoy;
 use hal::{pac, sio::Sio, spi, watchdog::Watchdog};
 
-//mod array_scaler;
 mod clocks;
-
 mod gameboy;
-
 mod hardware;
 mod rp_hal;
-
 mod util;
 //
 
@@ -322,14 +312,5 @@ fn main() -> ! {
         info!("Free Mem: {}", ALLOCATOR.free());
         info!("Used Mem: {}", ALLOCATOR.used());
         loop_counter += 1;
-    }
-}
-
-struct InfiniteIter;
-impl Iterator for InfiniteIter {
-    type Item = u16;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        Some(Rgb565::GREEN.into_storage())
     }
 }
