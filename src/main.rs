@@ -17,11 +17,13 @@ use embedded_graphics::prelude::{IntoStorage, Point, RgbColor, Size, WebColors};
 use embedded_graphics::primitives::Rectangle;
 use embedded_hal::delay::DelayNs;
 use embedded_sdmmc::{SdCard, VolumeManager};
-use gameboy::display::{GameVideoIter, GameboyLineBufferDisplay};
+use gameboy::display::GameboyLineBufferDisplay;
 //use i2s::I2sPioInterface;
 use embedded_graphics_core::draw_target::DrawTarget;
+use gameboy::GameEmulationHandler;
 use hal::fugit::RateExtU32;
-use i2s2::I2sPioInterfaceDB;
+
+use hardware::display::ScreenScaler;
 use ili9341::{DisplaySize, DisplaySize240x320};
 use panic_probe as _;
 use rp2040_hal::dma::DMAExt;
@@ -37,20 +39,15 @@ use embedded_alloc::Heap;
 
 use gb_core::gameboy::GameBoy;
 use hal::{pac, sio::Sio, spi, watchdog::Watchdog};
-use util::DummyOutputPin;
-mod array_scaler;
+
+//mod array_scaler;
 mod clocks;
-mod dma_transfer;
+
 mod gameboy;
-//mod i2s;
-mod display;
-mod i2s2;
-mod pio_interface;
+
+mod hardware;
 mod rp_hal;
-mod scaler;
-mod sdcard;
-mod spi_device;
-mod stream_display;
+
 mod util;
 //
 
@@ -156,7 +153,7 @@ fn main() -> ! {
     );
     let exclusive_spi = embedded_hal_bus::spi::ExclusiveDevice::new(spi, spi_cs, timer).unwrap();
     let sdcard = SdCard::new(exclusive_spi, timer);
-    let mut volume_mgr = VolumeManager::new(sdcard, sdcard::DummyTimesource::default());
+    let mut volume_mgr = VolumeManager::new(sdcard, hardware::sdcard::DummyTimesource::default());
 
     let mut volume0 = volume_mgr
         .open_volume(embedded_sdmmc::VolumeIdx(0))
@@ -217,41 +214,27 @@ fn main() -> ! {
             .unwrap()
             .as_mut_slice();
 
-    let mut streamer = stream_display::Streamer::new(dma.ch0, dma.ch1, spare);
+    let streamer = hardware::display::DmaStreamer::new(dma.ch0, dma.ch1, spare);
 
-    // let display_interface = display::spi_pio_16::SpiPioInterfaceMultiBit::new(
-    //     (3, 0),
-    //     screen_dc,
-    //     &mut pio_0,
-    //     sm0_1,
-    //     sm0_0,
-    //     spi_sclk.id().num,
-    //     spi_mosi.id().num,
-    // );
-
-    // let display_interface = display::spi_pio_16_dma::SpiPioInterfaceMultiBitDma::new(
-    //     (3, 0),
-    //     screen_dc,
-    //     &mut pio_0,
-    //     sm0_1,
-    //     sm0_0,
-    //     spi_sclk.id().num,
-    //     spi_mosi.id().num,
-    //     streamer,
-    // );
-    ///////////////////////////////
-    // let display_interface =
-    //     pio_interface::PioInterface::new(3, rs, &mut pio_0, sm0_0, rw.id().num, (3, 10), endianess);
-
-    let display_interface = display::parallel_8bit::PioInterfaceStreamer::new(
+    let display_interface = hardware::display::SpiPioDmaInterface::new(
         (3, 0),
-        rs,
+        screen_dc,
         &mut pio_0,
+        sm0_1,
         sm0_0,
-        rw.id().num,
-        (3, 10),
+        spi_sclk.id().num,
+        spi_mosi.id().num,
         streamer,
     );
+    // let display_interface = hardware::display::PioInterfaceStreamer::new(
+    //     (3, 0),
+    //     rs,
+    //     &mut pio_0,
+    //     sm0_0,
+    //     rw.id().num,
+    //     (3, 10),
+    //     streamer,
+    // );
     let display_reset = pins.gpio2.into_push_pull_output();
     let mut display = ili9341::Ili9341::new_orig(
         display_interface,
@@ -296,7 +279,7 @@ fn main() -> ! {
         cortex_m::singleton!(: [u16; (2000 * 3) * 3]  = [0u16;  (2000 * 3) * 3 ])
             .unwrap()
             .as_mut_slice();
-    let i2s_interface = I2sPioInterfaceDB::new(
+    let i2s_interface = hardware::sound::I2sPioInterface::new(
         sample_rate,
         dma.ch2,
         dma.ch3,
@@ -311,8 +294,7 @@ fn main() -> ! {
     let screen = GameboyLineBufferDisplay::new(timer);
     let mut gameboy = GameBoy::create(screen, cartridge, boot_rom, Box::new(i2s_interface));
 
-    let scaler: scaler::ScreenScaler<144, 160, { SCREEN_WIDTH }, { SCREEN_HEIGHT }> =
-        scaler::ScreenScaler::new();
+    let scaler: ScreenScaler<144, 160, { SCREEN_WIDTH }, { SCREEN_HEIGHT }> = ScreenScaler::new();
 
     let mut loop_counter: usize = 0;
     loop {
@@ -324,7 +306,7 @@ fn main() -> ! {
                 0,
                 (SCREEN_HEIGHT - 1) as u16,
                 (SCREEN_WIDTH - 1) as u16,
-                scaler.scale_iterator(GameVideoIter::new(&mut gameboy)),
+                scaler.scale_iterator(GameEmulationHandler::new(&mut gameboy)),
             )
             .unwrap();
 

@@ -23,18 +23,14 @@ enum DmaState<
     RUNNING(DTransfer<CH1, CH2, FROM, ToType<P, SM>, ReadNext<FROM>>),
 }
 
-pub struct I2sPioInterfaceDB<
-    CH1: SingleChannel,
-    CH2: SingleChannel,
-    P: PIOExt,
-    SM: StateMachineIndex,
-> {
+pub struct I2sPioInterface<CH1: SingleChannel, CH2: SingleChannel, P: PIOExt, SM: StateMachineIndex>
+{
     dma_state: Option<DmaState<CH1, CH2, LimitingArrayReadTarget, P, SM>>,
     second_buffer: Option<LimitingArrayReadTarget>,
     sample_rate: u32,
 }
 
-impl<CH1, CH2, P, SM> I2sPioInterfaceDB<CH1, CH2, P, SM>
+impl<CH1, CH2, P, SM> I2sPioInterface<CH1, CH2, P, SM>
 where
     CH1: SingleChannel,
     CH2: SingleChannel,
@@ -111,7 +107,7 @@ where
     }
 }
 
-impl<CH1, CH2, P, SM> gb_core::hardware::sound::AudioPlayer for I2sPioInterfaceDB<CH1, CH2, P, SM>
+impl<CH1, CH2, P, SM> gb_core::hardware::sound::AudioPlayer for I2sPioInterface<CH1, CH2, P, SM>
 where
     CH1: SingleChannel,
     CH2: SingleChannel,
@@ -150,7 +146,7 @@ where
             None => false,
         };
 
-        true
+        underflowed
     }
 }
 

@@ -1,4 +1,3 @@
-use crate::array_scaler::LineTransfer;
 use crate::rp_hal::hal;
 
 use hal::dma::{
@@ -8,6 +7,8 @@ use hal::dma::{
 
 use crate::hal::dma::{double_buffer::ReadNext, EndlessWriteTarget};
 use embedded_dma::{ReadBuffer, Word};
+
+use super::LineTransfer;
 
 enum DmaState<
     T: Word,

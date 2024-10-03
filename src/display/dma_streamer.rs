@@ -1,12 +1,11 @@
-use crate::array_scaler::LineTransfer;
 use crate::hal::dma::WriteTarget;
 
-use crate::dma_transfer;
+use super::{DmaTransfer, LineTransfer};
 use crate::hal::dma::EndlessWriteTarget;
 use crate::rp_hal::hal;
 use byte_slice_cast::{AsMutSliceOf, ToMutByteSlice};
 use hal::dma::SingleChannel;
-pub struct Streamer<CH1, CH2> {
+pub struct DmaStreamer<CH1, CH2> {
     dma_channel1: Option<CH1>,
     dma_channel2: Option<CH2>,
     spare_buffer: Option<&'static mut [u16]>,
@@ -14,7 +13,7 @@ pub struct Streamer<CH1, CH2> {
     main_buffer: Option<&'static mut [u16]>,
 }
 
-impl<CH1, CH2> Streamer<CH1, CH2>
+impl<CH1, CH2> DmaStreamer<CH1, CH2>
 where
     CH1: SingleChannel,
     CH2: SingleChannel,
@@ -46,8 +45,7 @@ where
             ToMutByteSlice::to_mut_byte_slice(self.spare_buffer2.take().unwrap());
         let main_buffer: &'static mut [u8] =
             ToMutByteSlice::to_mut_byte_slice(self.main_buffer.take().unwrap());
-        let stream =
-            dma_transfer::DmaTransfer::new(channel1, channel2, tx, main_buffer, spare_buffer2);
+        let stream = DmaTransfer::new(channel1, channel2, tx, main_buffer, spare_buffer2);
 
         let (stream, spare_buffer) = Self::compute_line(stream, spare_buffer, iterator);
 
@@ -74,8 +72,7 @@ where
 
         let main_buffer = core::mem::replace(&mut self.main_buffer, None).unwrap();
 
-        let stream =
-            dma_transfer::DmaTransfer::new(channel1, channel2, tx, main_buffer, spare_buffer2);
+        let stream = DmaTransfer::new(channel1, channel2, tx, main_buffer, spare_buffer2);
 
         let (stream, spare_buffer) = Self::compute_line_u16(stream, spare_buffer, iterator, f);
 

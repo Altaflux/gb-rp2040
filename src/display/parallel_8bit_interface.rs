@@ -1,5 +1,5 @@
 use crate::rp_hal::hal;
-use crate::stream_display::Streamer;
+
 use display_interface::{DataFormat, DisplayError, WriteOnlyDataCommand};
 use embedded_hal::digital::OutputPin;
 use hal::dma::HalfWord;
@@ -8,17 +8,19 @@ use hal::pio::{Running, StateMachine, StateMachineIndex, Tx};
 use hal::pio::{Rx, UninitStateMachine};
 type Result = core::result::Result<(), DisplayError>;
 use hal::dma::Byte;
-use rp2040_hal::dma::SingleChannel;
-pub struct PioInterfaceStreamer<RS, P: PIOExt, SM: StateMachineIndex, CH1, CH2> {
+use hal::dma::SingleChannel;
+
+use super::DmaStreamer;
+pub struct Parallel8BitDmaInterface<RS, P: PIOExt, SM: StateMachineIndex, CH1, CH2> {
     sm: StateMachine<(P, SM), Running>,
     tx: Option<Tx<(P, SM), HalfWord>>,
     rx: Rx<(P, SM)>,
     labels: PIOLabelDefines,
     rs: RS,
-    streamer: Streamer<CH1, CH2>,
+    streamer: DmaStreamer<CH1, CH2>,
 }
 
-impl<RS, P, SM, CH1, CH2> PioInterfaceStreamer<RS, P, SM, CH1, CH2>
+impl<RS, P, SM, CH1, CH2> Parallel8BitDmaInterface<RS, P, SM, CH1, CH2>
 where
     P: PIOExt,
     SM: StateMachineIndex,
@@ -31,7 +33,7 @@ where
         sm: UninitStateMachine<(P, SM)>,
         rw: u8,
         pins: (u8, u8),
-        streamer: Streamer<CH1, CH2>,
+        streamer: DmaStreamer<CH1, CH2>,
     ) -> Self {
         let video_program = pio_proc::pio_asm!(
             ".side_set 1 opt",
@@ -105,27 +107,6 @@ where
         self.sm.exec_instruction(instruction);
     }
 
-    pub fn transfer_16bit_mode<F>(&mut self, mut callback: F)
-    where
-        F: FnMut(Tx<(P, SM), HalfWord>) -> Tx<(P, SM), HalfWord>,
-    {
-        self.set_16bit_mode();
-        let tx = core::mem::replace(&mut self.tx, None);
-        let interface = (callback)(tx.unwrap());
-        self.tx = Some(interface);
-    }
-
-    pub fn transfer_8bit_mode<F>(mut self, mut callback: F) -> Self
-    where
-        F: FnMut(Tx<(P, SM), Byte>) -> Tx<(P, SM), Byte>,
-    {
-        self.set_8bit_mode();
-        let tx = core::mem::replace(&mut self.tx, None);
-        let interface = (callback)(tx.unwrap().transfer_size(Byte));
-        self.tx = Some(interface.transfer_size(HalfWord));
-        self
-    }
-
     #[allow(dead_code)]
     pub fn free(self, pio: &mut PIO<P>) -> (UninitStateMachine<(P, SM)>, RS) {
         let (sm, prg) = self.sm.uninit(self.rx, self.tx.unwrap());
@@ -134,7 +115,7 @@ where
     }
 }
 
-impl<RS, P, SM, CH1, CH2> WriteOnlyDataCommand for PioInterfaceStreamer<RS, P, SM, CH1, CH2>
+impl<RS, P, SM, CH1, CH2> WriteOnlyDataCommand for Parallel8BitDmaInterface<RS, P, SM, CH1, CH2>
 where
     P: PIOExt,
     SM: StateMachineIndex,
@@ -165,7 +146,7 @@ struct PIOLabelDefines {
 
 #[inline(always)]
 fn send_data<RS, P, SM, CH1, CH2>(
-    iface: &mut PioInterfaceStreamer<RS, P, SM, CH1, CH2>,
+    iface: &mut Parallel8BitDmaInterface<RS, P, SM, CH1, CH2>,
     words: DataFormat<'_>,
 ) -> Result
 where

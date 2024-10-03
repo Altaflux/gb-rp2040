@@ -1,9 +1,7 @@
-use core::cell::RefCell;
-
 use crate::rp_hal::hal;
-use crate::stream_display::Streamer;
+
 use display_interface::{DataFormat, DisplayError, WriteOnlyDataCommand};
-use embedded_dma::Word;
+
 use embedded_hal::digital::OutputPin;
 use hal::dma::HalfWord;
 use hal::pio::{PIOExt, PIO};
@@ -11,13 +9,12 @@ use hal::pio::{Running, StateMachine, StateMachineIndex, Tx};
 use hal::pio::{Rx, UninitStateMachine};
 type Result = core::result::Result<(), DisplayError>;
 use hal::dma::Byte;
-use rp2040_hal::dma::SingleChannel;
-use rp2040_hal::pio::Stopped;
+use hal::dma::SingleChannel;
+use hal::pio::Stopped;
 
-use defmt::*;
-use defmt_rtt as _;
+use super::DmaStreamer;
 
-pub struct SpiPioInterfaceMultiBitDma<
+pub struct SpiPioDmaInterface<
     RS,
     P: PIOExt,
     SM1: StateMachineIndex,
@@ -25,7 +22,7 @@ pub struct SpiPioInterfaceMultiBitDma<
     CH1,
     CH2,
 > {
-    streamer: Streamer<CH1, CH2>,
+    streamer: DmaStreamer<CH1, CH2>,
     mode: Option<PioMode<P, SM1, SM2>>,
     rs: RS,
 }
@@ -50,7 +47,7 @@ struct PioContainer<P: PIOExt, SM: StateMachineIndex, TxSize, State> {
     tx: Tx<(P, SM), TxSize>,
     rx: Rx<(P, SM)>,
 }
-impl<RS, P, SM1, SM2, CH1, CH2> SpiPioInterfaceMultiBitDma<RS, P, SM1, SM2, CH1, CH2>
+impl<RS, P, SM1, SM2, CH1, CH2> SpiPioDmaInterface<RS, P, SM1, SM2, CH1, CH2>
 where
     P: PIOExt,
     SM1: StateMachineIndex,
@@ -67,7 +64,7 @@ where
         sm2: UninitStateMachine<(P, SM2)>,
         clk: u8,
         tx: u8,
-        streamer: Streamer<CH1, CH2>,
+        streamer: DmaStreamer<CH1, CH2>,
     ) -> Self {
         let video_program = pio_proc::pio_asm!(".side_set 1 ", "out pins, 1 side 0", "nop side 1",);
 
@@ -118,85 +115,6 @@ where
             mode: Some(PioMode::ByteMode((byte_sm, half_word_sm))),
         }
     }
-
-    // pub fn transfer_16bit_mode<F>(&mut self, mut callback: F)
-    // where
-    //     F: FnMut(Tx<(P, SM2), HalfWord>, &mut Streamer<CH1, CH2, u16>) -> Tx<(P, SM2), HalfWord>,
-    // {
-    //     let pio_mode = core::mem::replace(&mut self.mode, None).unwrap();
-    //     let (byte_sm, mut half_byte_sm) = Self::set_16bit_mode(pio_mode);
-
-    //     let mut streamer = self.streamer.take().unwrap();
-    //     let interface = (callback)(half_byte_sm.tx, &mut streamer);
-    //     half_byte_sm.tx = interface;
-    //     self.streamer = Some(streamer);
-    //     self.mode = Some(PioMode::HalfWordMode((byte_sm, half_byte_sm)));
-    // }
-
-    // pub fn transfer_16bit_mode_two<F>(&mut self, mut callback: F)
-    // where
-    //     F: FnMut(
-    //         Tx<(P, SM2), HalfWord>,
-    //         Streamer<CH1, CH2, u16>,
-    //     ) -> (Tx<(P, SM2), HalfWord>, Streamer<CH1, CH2, u16>),
-    // {
-    //     let pio_mode = core::mem::replace(&mut self.mode, None).unwrap();
-    //     let (byte_sm, mut half_byte_sm) = Self::set_16bit_mode(pio_mode);
-    //     let mut streamer = self.streamer.take().unwrap();
-    //     let interface = (callback)(half_byte_sm.tx, streamer);
-    //     half_byte_sm.tx = interface.0;
-    //     self.streamer = Some(interface.1);
-    //     self.mode = Some(PioMode::HalfWordMode((byte_sm, half_byte_sm)));
-    // }
-
-    // #[inline(always)]
-    // pub fn iterator_16bit_mode(&mut self, iterator: &mut dyn Iterator<Item = u16>) {
-    //     let pio_mode = core::mem::replace(&mut self.mode, None).unwrap();
-    //     let (byte_sm, mut half_byte_sm) = Self::set_16bit_mode(pio_mode);
-
-    //     // let mut streamer = self.streamer;
-    //     half_byte_sm.tx = self.streamer.stream(half_byte_sm.tx, iterator);
-    //     //self.streamer = Some(streamer);
-    //     self.mode = Some(PioMode::HalfWordMode((byte_sm, half_byte_sm)));
-    // }
-
-    pub fn transfer_8bit_mode<F>(&mut self, mut callback: F)
-    where
-        F: FnMut(Tx<(P, SM1), Byte>) -> Tx<(P, SM1), Byte>,
-    {
-        let pio_mode = core::mem::replace(&mut self.mode, None).unwrap();
-        let (mut byte_sm, half_byte_sm) = Self::set_8bit_mode(pio_mode);
-
-        let interface = (callback)(byte_sm.tx);
-        byte_sm.tx = interface;
-
-        self.mode = Some(PioMode::ByteMode((byte_sm, half_byte_sm)));
-    }
-
-    pub fn transfer_16bit_mode<F>(&mut self, mut callback: F)
-    where
-        F: FnMut(Tx<(P, SM1), HalfWord>) -> Tx<(P, SM1), HalfWord>,
-    {
-        let pio_mode = core::mem::replace(&mut self.mode, None).unwrap();
-        let (mut byte_sm, half_byte_sm) = Self::set_16bit_mode(pio_mode);
-
-        let interface = (callback)(byte_sm.tx.transfer_size(HalfWord));
-        byte_sm.tx = interface.transfer_size(Byte);
-
-        self.mode = Some(PioMode::HalfWordMode((byte_sm, half_byte_sm)));
-    }
-    // pub fn transfer_16bit_mode_no_stream<F>(&mut self, mut callback: F)
-    // where
-    //     F: FnMut(Tx<(P, SM1), HalfWord>) -> Tx<(P, SM1), HalfWord>,
-    // {
-    //     let pio_mode = core::mem::replace(&mut self.mode, None).unwrap();
-    //     let (mut byte_sm, half_byte_sm) = Self::set_8bit_mode(pio_mode);
-
-    //     let interface = (callback)(byte_sm.tx.transfer_size(HalfWord));
-    //     byte_sm.tx = interface.transfer_size(Byte);
-
-    //     self.mode = Some(PioMode::ByteMode((byte_sm, half_byte_sm)));
-    // }
 
     #[cold]
     fn set_8bit_mode(
@@ -260,30 +178,6 @@ where
         self.mode = Some(mode);
         is_idle
     }
-
-    // pub fn transfer_16bit_mode<F>(mut self, mut callback: F) -> Self
-    // where
-    //     F: FnMut(Tx<(P, SM), HalfWord>) -> Tx<(P, SM), HalfWord>,
-    // {
-    //     let interface = (callback)(self.tx);
-    //     self.tx = interface;
-    //     self
-    // }
-
-    // pub fn transfer_8bit_mode<F>(mut self, mut callback: F) -> Self
-    // where
-    //     F: FnMut(Tx<(P, SM), Byte>) -> Tx<(P, SM), Byte>,
-    // {
-    //     let interface = (callback)(self.tx.transfer_size(Byte));
-    //     self.tx = interface.transfer_size(HalfWord);
-    //     self
-    // }
-
-    // pub fn free(self, pio: &mut PIO<P>) -> (UninitStateMachine<(P, SM)>, RS) {
-    //     let (sm, prg) = self.sm.uninit(self.rx, self.tx);
-    //     pio.uninstall(prg);
-    //     (sm, self.rs)
-    // }
 
     #[inline(always)]
     fn send_data(&mut self, words: DataFormat<'_>) -> Result
@@ -364,7 +258,7 @@ where
 }
 
 impl<RS, P, SM1, SM2, CH1: SingleChannel, CH2: SingleChannel> WriteOnlyDataCommand
-    for SpiPioInterfaceMultiBitDma<RS, P, SM1, SM2, CH1, CH2>
+    for SpiPioDmaInterface<RS, P, SM1, SM2, CH1, CH2>
 where
     P: PIOExt,
     SM1: StateMachineIndex,
