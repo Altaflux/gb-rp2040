@@ -27,7 +27,7 @@ where
     END: Fn(bool, u16) -> u16,
 {
     pub fn new(
-        clock_divider: u16,
+        clock_divider: (u16, u8),
         rs: RS,
         pio: &mut PIO<P>,
         sm: UninitStateMachine<(P, SM)>,
@@ -43,15 +43,15 @@ where
 
             "public start_tx:"
             "pull side 1",
-            "out pins, 24 side 0 [1] ",
-            "nop side 1 [1] ",
-            "out pins, 8 side 0 [1] ",
+            "out pins, 24 side 0  ",
+            "nop side 1  ",
+            "out pins, 8 side 0  ",
             "jmp start_tx side 1 ",
 
             "public start_8:"
-            "pull side 1 [1]",
-            "out pins, 32 side 0 [1]",
-            "jmp start_8 side 1 [1]",
+            "pull side 1 ",
+            "out pins, 32 side 0 ",
+            "jmp start_8 side 1 ",
             ".wrap"
         );
         let out_pin_offset = ((1i16 - pins.0 as i16) + pins.1 as i16) as u8;
@@ -64,7 +64,7 @@ where
                 .out_shift_direction(hal::pio::ShiftDirection::Left)
                 .in_shift_direction(hal::pio::ShiftDirection::Left)
                 .buffers(hal::pio::Buffers::OnlyTx)
-                .clock_divisor_fixed_point(clock_divider, 0)
+                .clock_divisor_fixed_point(clock_divider.0, clock_divider.1)
                 .build(sm);
         video_sm.set_pindirs((pins.0..pins.1 + 1 as u8).map(|n| (n, hal::pio::PinDir::Output)));
         video_sm.set_pindirs([(rw, hal::pio::PinDir::Output)]);

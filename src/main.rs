@@ -220,7 +220,7 @@ fn main() -> ! {
     let mut streamer = stream_display::Streamer::new(dma.ch0, dma.ch1, spare);
 
     // let display_interface = display::spi_pio_16::SpiPioInterfaceMultiBit::new(
-    //     3,
+    //     (3, 0),
     //     screen_dc,
     //     &mut pio_0,
     //     sm0_1,
@@ -230,7 +230,7 @@ fn main() -> ! {
     // );
 
     // let display_interface = display::spi_pio_16_dma::SpiPioInterfaceMultiBitDma::new(
-    //     3,
+    //     (3, 0),
     //     screen_dc,
     //     &mut pio_0,
     //     sm0_1,
@@ -244,7 +244,7 @@ fn main() -> ! {
     //     pio_interface::PioInterface::new(3, rs, &mut pio_0, sm0_0, rw.id().num, (3, 10), endianess);
 
     let display_interface = display::parallel_8bit::PioInterfaceStreamer::new(
-        3,
+        (3, 0),
         rs,
         &mut pio_0,
         sm0_0,

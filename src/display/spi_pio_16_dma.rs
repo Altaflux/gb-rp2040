@@ -60,7 +60,7 @@ where
     CH2: SingleChannel,
 {
     pub fn new(
-        clock_divider: u16,
+        clock_divider: (u16, u8),
         rs: RS,
         pio: &mut PIO<P>,
         sm1: UninitStateMachine<(P, SM1)>,
@@ -81,7 +81,7 @@ where
                 .out_shift_direction(hal::pio::ShiftDirection::Left)
                 .in_shift_direction(hal::pio::ShiftDirection::Left)
                 .buffers(hal::pio::Buffers::OnlyTx)
-                .clock_divisor_fixed_point(clock_divider, 0)
+                .clock_divisor_fixed_point(clock_divider.0, clock_divider.1)
                 .build(sm1);
         sm_8b.set_pindirs([(tx, hal::pio::PinDir::Output)]);
         sm_8b.set_pindirs([(clk, hal::pio::PinDir::Output)]);
@@ -95,7 +95,7 @@ where
                 .out_shift_direction(hal::pio::ShiftDirection::Left)
                 .in_shift_direction(hal::pio::ShiftDirection::Left)
                 .buffers(hal::pio::Buffers::OnlyTx)
-                .clock_divisor_fixed_point(clock_divider, 0)
+                .clock_divisor_fixed_point(clock_divider.0, clock_divider.1)
                 .build(sm2);
 
         sm_16b.set_pindirs([(tx, hal::pio::PinDir::Output)]);
