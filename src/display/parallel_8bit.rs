@@ -1,4 +1,5 @@
 use crate::rp_hal::hal;
+use crate::stream_display::Streamer;
 use display_interface::{DataFormat, DisplayError, WriteOnlyDataCommand};
 use embedded_hal::digital::OutputPin;
 use hal::dma::HalfWord;
@@ -7,16 +8,18 @@ use hal::pio::{Running, StateMachine, StateMachineIndex, Tx};
 use hal::pio::{Rx, UninitStateMachine};
 type Result = core::result::Result<(), DisplayError>;
 use hal::dma::Byte;
-pub struct PioInterface<RS, P: PIOExt, SM: StateMachineIndex, END> {
+use rp2040_hal::dma::SingleChannel;
+pub struct PioInterface<RS, P: PIOExt, SM: StateMachineIndex, END, CH1, CH2> {
     sm: StateMachine<(P, SM), Running>,
     tx: Option<Tx<(P, SM), HalfWord>>,
     rx: Rx<(P, SM)>,
     labels: PIOLabelDefines,
     rs: RS,
+    streamer: Streamer<CH1, CH2>,
     pub endian_function: END,
 }
 
-impl<RS, P, SM, END> PioInterface<RS, P, SM, END>
+impl<RS, P, SM, END, CH1, CH2> PioInterface<RS, P, SM, END, CH1, CH2>
 where
     P: PIOExt,
     SM: StateMachineIndex,
@@ -30,6 +33,7 @@ where
         sm: UninitStateMachine<(P, SM)>,
         rw: u8,
         pins: (u8, u8),
+        streamer: Streamer<CH1, CH2>,
         endianess: END,
     ) -> Self {
         let video_program = pio_proc::pio_asm!(
@@ -78,6 +82,7 @@ where
             tx: Some(vid_tx.transfer_size(HalfWord)),
             labels: labels,
             endian_function: endianess,
+            streamer,
         }
     }
 
@@ -132,19 +137,23 @@ where
     }
 }
 
-impl<RS, P, SM, END> WriteOnlyDataCommand for PioInterface<RS, P, SM, END>
+impl<RS, P, SM, END, CH1, CH2> WriteOnlyDataCommand for PioInterface<RS, P, SM, END, CH1, CH2>
 where
     P: PIOExt,
     SM: StateMachineIndex,
     RS: OutputPin,
+    CH1: SingleChannel,
+    CH2: SingleChannel,
     END: Fn(bool, u16) -> u16,
 {
+    #[inline(always)]
     fn send_commands(&mut self, cmd: display_interface::DataFormat<'_>) -> Result {
         self.rs.set_low().map_err(|_| DisplayError::RSError)?;
         send_data(self, cmd)?;
         Ok(())
     }
 
+    #[inline(always)]
     fn send_data(&mut self, buf: display_interface::DataFormat<'_>) -> Result {
         self.rs.set_high().map_err(|_| DisplayError::RSError)?;
         send_data(self, buf)?;
@@ -158,14 +167,17 @@ struct PIOLabelDefines {
     pub bit_16: i32,
 }
 
-fn send_data<RS, P, SM, END>(
-    iface: &mut PioInterface<RS, P, SM, END>,
+#[inline(always)]
+fn send_data<RS, P, SM, END, CH1, CH2>(
+    iface: &mut PioInterface<RS, P, SM, END, CH1, CH2>,
     words: DataFormat<'_>,
 ) -> Result
 where
     P: PIOExt,
     SM: StateMachineIndex,
     RS: OutputPin,
+    CH1: SingleChannel,
+    CH2: SingleChannel,
     END: Fn(bool, u16) -> u16,
 {
     match words {
@@ -219,22 +231,14 @@ where
         }
         DataFormat::U16BEIter(iter) => {
             iface.set_16bit_mode();
-            let tx = iface.tx.as_mut().unwrap();
-            for i in iter {
-                let tmp = (iface.endian_function)(true, i) as u32;
-                while !tx.write(tmp) {}
-            }
-            while !tx.is_empty() {}
+            let tx = iface.tx.take().unwrap();
+            iface.streamer.stream_16b(tx, iter, u16::to_be);
             Ok(())
         }
         DataFormat::U16LEIter(iter) => {
             iface.set_16bit_mode();
-            let tx = iface.tx.as_mut().unwrap();
-            for i in iter {
-                let tmp = (iface.endian_function)(false, i) as u32;
-                while !tx.write(tmp) {}
-            }
-            while !tx.is_empty() {}
+            let tx = iface.tx.take().unwrap();
+            iface.streamer.stream_16b(tx, iter, u16::to_le);
             Ok(())
         }
         _ => Err(DisplayError::DataFormatNotImplemented),
