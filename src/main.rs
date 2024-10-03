@@ -229,19 +229,30 @@ fn main() -> ! {
     //     spi_mosi.id().num,
     // );
 
-    let display_interface = display::spi_pio_16_dma::SpiPioInterfaceMultiBitDma::new(
-        3,
-        screen_dc,
-        &mut pio_0,
-        sm0_1,
-        sm0_0,
-        spi_sclk.id().num,
-        spi_mosi.id().num,
-        streamer,
-    );
+    // let display_interface = display::spi_pio_16_dma::SpiPioInterfaceMultiBitDma::new(
+    //     3,
+    //     screen_dc,
+    //     &mut pio_0,
+    //     sm0_1,
+    //     sm0_0,
+    //     spi_sclk.id().num,
+    //     spi_mosi.id().num,
+    //     streamer,
+    // );
     ///////////////////////////////
     // let display_interface =
     //     pio_interface::PioInterface::new(3, rs, &mut pio_0, sm0_0, rw.id().num, (3, 10), endianess);
+
+    let display_interface = display::parallel_8bit::PioInterfaceStreamer::new(
+        3,
+        rs,
+        &mut pio_0,
+        sm0_0,
+        rw.id().num,
+        (3, 10),
+        streamer,
+        endianess,
+    );
     let display_reset = pins.gpio2.into_push_pull_output();
     let mut display = ili9341::Ili9341::new_orig(
         display_interface,

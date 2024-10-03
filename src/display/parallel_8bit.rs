@@ -232,14 +232,14 @@ where
         DataFormat::U16BEIter(iter) => {
             iface.set_16bit_mode();
             let tx = iface.tx.take().unwrap();
-            let tx = iface.streamer.stream_16b(tx, iter, u16::to_be);
+            let tx = iface.streamer.stream_16b(tx, iter, u16::to_le);
             iface.tx = Some(tx);
             Ok(())
         }
         DataFormat::U16LEIter(iter) => {
             iface.set_16bit_mode();
             let tx = iface.tx.take().unwrap();
-            let tx = iface.streamer.stream_16b(tx, iter, u16::to_le);
+            let tx = iface.streamer.stream_16b(tx, iter, u16::to_be);
             iface.tx = Some(tx);
             Ok(())
         }
