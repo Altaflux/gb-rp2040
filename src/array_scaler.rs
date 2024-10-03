@@ -41,7 +41,7 @@ where
             buffer[width_position] = out;
             width_position += 1;
             if width_position == buffer.len() {
-                buffer = transfer.send_scanline(buffer);
+                buffer = transfer.send_scanline(buffer, buffer.len() as u32);
                 width_position = 0;
             }
         }
@@ -52,5 +52,9 @@ where
 
 pub trait LineTransfer {
     type Item;
-    fn send_scanline(&mut self, line: &'static mut [Self::Item]) -> &'static mut [Self::Item];
+    fn send_scanline(
+        &mut self,
+        line: &'static mut [Self::Item],
+        size: u32,
+    ) -> &'static mut [Self::Item];
 }

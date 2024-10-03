@@ -56,10 +56,10 @@ where
         }
     }
 
-    pub fn do_tranfer(&mut self, buffer: &'static mut [T]) -> &'static mut [T] {
+    #[inline(always)]
+    pub fn do_tranfer(&mut self, buffer: &'static mut [T], max: u32) -> &'static mut [T] {
         let dma_state = core::mem::replace(&mut self.dma, None).unwrap();
-        let new_data: LimitingArrayReadTarget<T> =
-            LimitingArrayReadTarget::new(buffer, buffer.len() as u32);
+        let new_data: LimitingArrayReadTarget<T> = LimitingArrayReadTarget::new(buffer, max);
         let (free_buffer, new_dma_state) = match dma_state {
             DmaState::IDLE(transfer) => {
                 let state = transfer.read_next(new_data);
@@ -107,8 +107,13 @@ where
     TO: WriteTarget<TransmittedWord = T> + EndlessWriteTarget,
 {
     type Item = T;
-    fn send_scanline(&mut self, line: &'static mut [Self::Item]) -> &'static mut [Self::Item] {
-        self.do_tranfer(line)
+
+    fn send_scanline(
+        &mut self,
+        line: &'static mut [Self::Item],
+        max: u32,
+    ) -> &'static mut [Self::Item] {
+        self.do_tranfer(line, max)
     }
 }
 

@@ -63,6 +63,7 @@ where
 
         sm
     }
+
     #[inline(always)]
     pub fn compute_line<T: LineTransfer<Item = DO>>(
         mut transfer: T,
@@ -75,9 +76,13 @@ where
             buffer[width_position] = out;
             width_position += 1;
             if width_position == buffer.len() {
-                buffer = transfer.send_scanline(buffer);
+                buffer = transfer.send_scanline(buffer, buffer.len() as u32);
                 width_position = 0;
             }
+        }
+
+        if width_position > 0 {
+            buffer = transfer.send_scanline(buffer, width_position as u32);
         }
 
         (transfer, buffer)
