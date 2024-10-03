@@ -295,53 +295,43 @@ where
     {
         match words {
             DataFormat::U8(slice) => {
-                self.transfer_8bit_mode(|mut tx| {
-                    for i in slice {
-                        while !tx.write_u8_replicated(*i) {}
-                    }
-                    while !tx.is_empty() {}
-                    return tx;
-                });
-                // let pio_mode = core::mem::replace(&mut self.mode, None).unwrap();
-                // let (mut byte_sm, half_byte_sm) = Self::set_8bit_mode(pio_mode);
-                // byte_sm.tx = self
-                //     .streamer
-                //     .stream_8b(byte_sm.tx, &mut slice.iter().cloned());
-                // self.mode = Some(PioMode::ByteMode((byte_sm, half_byte_sm)));
-
+                let pio_mode = core::mem::replace(&mut self.mode, None).unwrap();
+                let (mut byte_sm, half_byte_sm) = Self::set_8bit_mode(pio_mode);
+                byte_sm.tx = self
+                    .streamer
+                    .stream_8b(byte_sm.tx, &mut slice.iter().cloned());
+                self.mode = Some(PioMode::ByteMode((byte_sm, half_byte_sm)));
                 Ok(())
             }
             DataFormat::U16(slice) => {
-                self.transfer_16bit_mode(|mut tx| {
-                    for i in slice {
-                        while !tx.write_u16_replicated(*i) {}
-                    }
-                    while !tx.is_empty() {}
-                    return tx;
-                });
-
+                let pio_mode = core::mem::replace(&mut self.mode, None).unwrap();
+                let (byte_sm, mut half_byte_sm) = Self::set_16bit_mode(pio_mode);
+                half_byte_sm.tx =
+                    self.streamer
+                        .stream_16b(half_byte_sm.tx, &mut slice.iter().cloned(), |d| d);
+                self.mode = Some(PioMode::HalfWordMode((byte_sm, half_byte_sm)));
                 Ok(())
             }
             DataFormat::U16LE(slice) => {
-                self.transfer_16bit_mode(|mut tx| {
-                    for i in &mut *slice {
-                        while !tx.write_u16_replicated((*i).to_le()) {}
-                    }
-                    while !tx.is_empty() {}
-                    return tx;
-                });
-
+                let pio_mode = core::mem::replace(&mut self.mode, None).unwrap();
+                let (byte_sm, mut half_byte_sm) = Self::set_16bit_mode(pio_mode);
+                half_byte_sm.tx = self.streamer.stream_16b(
+                    half_byte_sm.tx,
+                    &mut (slice.iter().cloned()),
+                    u16::to_le,
+                );
+                self.mode = Some(PioMode::HalfWordMode((byte_sm, half_byte_sm)));
                 Ok(())
             }
             DataFormat::U16BE(slice) => {
-                self.transfer_16bit_mode(|mut tx| {
-                    for i in &mut *slice {
-                        while !tx.write_u16_replicated((*i).to_be()) {}
-                    }
-                    while !tx.is_empty() {}
-                    return tx;
-                });
-
+                let pio_mode = core::mem::replace(&mut self.mode, None).unwrap();
+                let (byte_sm, mut half_byte_sm) = Self::set_16bit_mode(pio_mode);
+                half_byte_sm.tx = self.streamer.stream_16b(
+                    half_byte_sm.tx,
+                    &mut (slice.iter().cloned()),
+                    u16::to_be,
+                );
+                self.mode = Some(PioMode::HalfWordMode((byte_sm, half_byte_sm)));
                 Ok(())
             }
             DataFormat::U8Iter(iter) => {

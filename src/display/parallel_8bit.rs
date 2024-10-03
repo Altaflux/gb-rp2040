@@ -177,12 +177,13 @@ where
 {
     match words {
         DataFormat::U8(slice) => {
-            iface.set_8bit_mode();
-            let tx = iface.tx.as_mut().unwrap();
-            for i in slice {
-                while !tx.write(*i as u32) {}
-            }
-            while !iface.tx.as_mut().unwrap().is_empty() {}
+            // iface.set_8bit_mode();
+            // let tx = iface.tx.as_mut().unwrap();
+            // for i in slice {
+            //     while !tx.write(*i as u32) {}
+            // }
+            // while !iface.tx.as_mut().unwrap().is_empty() {}
+            self::send_data(iface, DataFormat::U8Iter(&mut slice.into_iter().cloned())).unwrap();
             Ok(())
         }
         DataFormat::U16(slice) => {

@@ -317,57 +317,13 @@ fn main() -> ! {
     let mut loop_counter: usize = 0;
     loop {
         let start_time = timer.get_counter();
-        // display = display
-        //     .async_transfer_mode(
-        //         0,
-        //         0,
-        //         (SCREEN_HEIGHT - 1) as u16,
-        //         (SCREEN_WIDTH - 1) as u16,
-        //         // (160 - 1) as u16,
-        //         // (144 - 1) as u16,
-        //         |mut iface| {
-        //             ///////////////////
-        //             iface.transfer_16bit_mode(|sm| {
-        //                 streamer.stream_16b::<_, _>(
-        //                     sm,
-        //                     &mut scaler.scale_iterator(GameVideoIter::new(&mut gameboy)),
-        //                     u16::to_be,
-        //                 )
-        //             });
-        //             ///////////////////
-        //             // iface.iterator_16bit_mode(
-        //             //     &mut scaler.scale_iterator(GameVideoIter::new(&mut gameboy)),
-        //             // );
-        //             ///////////////////
-        //             // iface.transfer_16bit_mode_two(|sm, mut streamer| {
-        //             //     let old_sm = streamer.stream::<_>(
-        //             //         sm,
-        //             //         &mut scaler.scale_iterator(GameVideoIter::new(&mut gameboy)),
-        //             //     );
-        //             //     (old_sm, streamer)
-        //             // });
-        //             ///////////////////
-        //             iface
-        //         },
-        //     )
-        //     .unwrap();
-        let area = Rectangle::new(
-            Point::new(0, 0),
-            Size::new((SCREEN_HEIGHT - 1) as u32, (SCREEN_WIDTH - 1) as u32),
-        );
 
-        // let foo = scaler
-        //     .scale_iterator(GameVideoIter::new(&mut gameboy))
-        //     .map(|c| Rgb565::from(RawU16::new(c)));
-        // display.fill_contiguous(&area, foo).unwrap();
         display
             .draw_raw_iter(
                 0,
                 0,
                 (SCREEN_HEIGHT - 1) as u16,
                 (SCREEN_WIDTH - 1) as u16,
-                // (160 - 1) as u16,
-                // (144 - 1) as u16,
                 scaler.scale_iterator(GameVideoIter::new(&mut gameboy)),
             )
             .unwrap();
