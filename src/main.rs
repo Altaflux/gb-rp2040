@@ -216,7 +216,7 @@ fn main() -> ! {
         spi_mosi.id().num,
         streamer,
     );
-    // let display_interface = hardware::display::PioInterfaceStreamer::new(
+    // let display_interface = hardware::display::Parallel8BitDmaInterface::new(
     //     (3, 0),
     //     rs,
     //     &mut pio_0,
@@ -225,6 +225,7 @@ fn main() -> ! {
     //     (3, 10),
     //     streamer,
     // );
+
     let display_reset = pins.gpio2.into_push_pull_output();
     let mut display = ili9341::Ili9341::new_orig(
         display_interface,

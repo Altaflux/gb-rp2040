@@ -9,6 +9,7 @@ use dma_transfer::DmaTransfer;
 #[allow(unused_imports)]
 pub use parallel_8bit_interface::Parallel8BitDmaInterface;
 pub use scaler::ScreenScaler;
+#[allow(unused_imports)]
 pub use spi_pio_interface::SpiPioDmaInterface;
 trait LineTransfer {
     type Item;
