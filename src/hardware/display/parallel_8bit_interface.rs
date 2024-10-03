@@ -25,6 +25,8 @@ where
     P: PIOExt,
     SM: StateMachineIndex,
     RS: OutputPin,
+    CH1: SingleChannel,
+    CH2: SingleChannel,
 {
     pub fn new(
         clock_divider: (u16, u8),
@@ -113,6 +115,70 @@ where
         pio.uninstall(prg);
         (sm, self.rs)
     }
+
+    #[inline(always)]
+    fn send_data(&mut self, words: DataFormat<'_>) -> Result {
+        match words {
+            DataFormat::U8(slice) => {
+                self.set_8bit_mode();
+                let tx = self.tx.take().unwrap();
+                let tx = self
+                    .streamer
+                    .stream_8b(tx.transfer_size(Byte), &mut slice.iter().cloned());
+                self.tx = Some(tx.transfer_size(HalfWord));
+                Ok(())
+            }
+            DataFormat::U16(slice) => {
+                self.set_16bit_mode();
+                let tx = self.tx.take().unwrap();
+                let tx = self
+                    .streamer
+                    .stream_16b(tx, &mut slice.iter().cloned(), |d| d);
+                self.tx = Some(tx);
+                Ok(())
+            }
+            DataFormat::U16BE(slice) => {
+                self.set_16bit_mode();
+                let tx = self.tx.take().unwrap();
+                let tx = self
+                    .streamer
+                    .stream_16b(tx, &mut slice.iter().cloned(), u16::to_be);
+                self.tx = Some(tx);
+                Ok(())
+            }
+            DataFormat::U16LE(slice) => {
+                self.set_16bit_mode();
+                let tx = self.tx.take().unwrap();
+                let tx = self
+                    .streamer
+                    .stream_16b(tx, &mut slice.iter().cloned(), u16::to_le);
+                self.tx = Some(tx);
+                Ok(())
+            }
+            DataFormat::U8Iter(iter) => {
+                self.set_8bit_mode();
+                let tx = self.tx.take().unwrap();
+                let tx = self.streamer.stream_8b(tx.transfer_size(Byte), iter);
+                self.tx = Some(tx.transfer_size(HalfWord));
+                Ok(())
+            }
+            DataFormat::U16BEIter(iter) => {
+                self.set_16bit_mode();
+                let tx = self.tx.take().unwrap();
+                let tx = self.streamer.stream_16b(tx, iter, u16::to_be);
+                self.tx = Some(tx);
+                Ok(())
+            }
+            DataFormat::U16LEIter(iter) => {
+                self.set_16bit_mode();
+                let tx = self.tx.take().unwrap();
+                let tx = self.streamer.stream_16b(tx, iter, u16::to_le);
+                self.tx = Some(tx);
+                Ok(())
+            }
+            _ => Err(DisplayError::DataFormatNotImplemented),
+        }
+    }
 }
 
 impl<RS, P, SM, CH1, CH2> WriteOnlyDataCommand for Parallel8BitDmaInterface<RS, P, SM, CH1, CH2>
@@ -126,14 +192,14 @@ where
     #[inline(always)]
     fn send_commands(&mut self, cmd: display_interface::DataFormat<'_>) -> Result {
         self.rs.set_low().map_err(|_| DisplayError::RSError)?;
-        send_data(self, cmd)?;
+        self.send_data(cmd)?;
         Ok(())
     }
 
     #[inline(always)]
     fn send_data(&mut self, buf: display_interface::DataFormat<'_>) -> Result {
         self.rs.set_high().map_err(|_| DisplayError::RSError)?;
-        send_data(self, buf)?;
+        self.send_data(buf)?;
         Ok(())
     }
 }
@@ -142,78 +208,4 @@ struct PIOLabelDefines {
     pub program_offset: u8,
     pub bit_8: i32,
     pub bit_16: i32,
-}
-
-#[inline(always)]
-fn send_data<RS, P, SM, CH1, CH2>(
-    iface: &mut Parallel8BitDmaInterface<RS, P, SM, CH1, CH2>,
-    words: DataFormat<'_>,
-) -> Result
-where
-    P: PIOExt,
-    SM: StateMachineIndex,
-    RS: OutputPin,
-    CH1: SingleChannel,
-    CH2: SingleChannel,
-{
-    match words {
-        DataFormat::U8(slice) => {
-            iface.set_8bit_mode();
-            let tx = iface.tx.take().unwrap();
-            let tx = iface
-                .streamer
-                .stream_8b(tx.transfer_size(Byte), &mut slice.iter().cloned());
-            iface.tx = Some(tx.transfer_size(HalfWord));
-            Ok(())
-        }
-        DataFormat::U16(slice) => {
-            iface.set_16bit_mode();
-            let tx = iface.tx.take().unwrap();
-            let tx = iface
-                .streamer
-                .stream_16b(tx, &mut slice.iter().cloned(), |d| d);
-            iface.tx = Some(tx);
-            Ok(())
-        }
-        DataFormat::U16BE(slice) => {
-            iface.set_16bit_mode();
-            let tx = iface.tx.take().unwrap();
-            let tx = iface
-                .streamer
-                .stream_16b(tx, &mut slice.iter().cloned(), u16::to_be);
-            iface.tx = Some(tx);
-            Ok(())
-        }
-        DataFormat::U16LE(slice) => {
-            iface.set_16bit_mode();
-            let tx = iface.tx.take().unwrap();
-            let tx = iface
-                .streamer
-                .stream_16b(tx, &mut slice.iter().cloned(), u16::to_le);
-            iface.tx = Some(tx);
-            Ok(())
-        }
-        DataFormat::U8Iter(iter) => {
-            iface.set_8bit_mode();
-            let tx = iface.tx.take().unwrap();
-            let tx = iface.streamer.stream_8b(tx.transfer_size(Byte), iter);
-            iface.tx = Some(tx.transfer_size(HalfWord));
-            Ok(())
-        }
-        DataFormat::U16BEIter(iter) => {
-            iface.set_16bit_mode();
-            let tx = iface.tx.take().unwrap();
-            let tx = iface.streamer.stream_16b(tx, iter, u16::to_be);
-            iface.tx = Some(tx);
-            Ok(())
-        }
-        DataFormat::U16LEIter(iter) => {
-            iface.set_16bit_mode();
-            let tx = iface.tx.take().unwrap();
-            let tx = iface.streamer.stream_16b(tx, iter, u16::to_le);
-            iface.tx = Some(tx);
-            Ok(())
-        }
-        _ => Err(DisplayError::DataFormatNotImplemented),
-    }
 }
