@@ -60,7 +60,7 @@ rp2040-hal = { path = "C:\\Users\\pablo\\projects\\rp-hal\\rp2040-hal" }
 # rp2040-hal = { version="0.10", features=["rt", "critical-section-impl"] }
 # rp2040-boot2 = "0.3"
 
-
+#bytemuck = "1.18.0"
 # cargo build/run
 [profile.dev]
 codegen-units = 1
