@@ -1,4 +1,3 @@
-use crate::array_scaler::LineTransfer;
 use crate::rp_hal::hal;
 
 use hal::dma::{
@@ -8,6 +7,8 @@ use hal::dma::{
 
 use crate::hal::dma::{double_buffer::ReadNext, EndlessWriteTarget};
 use embedded_dma::{ReadBuffer, Word};
+
+use super::LineTransfer;
 
 enum DmaState<
     T: Word,
@@ -44,22 +45,23 @@ where
         buffer: &'static mut [T],
         buffer2: &'static mut [T],
     ) -> Self {
-        let cfg = Config::new(
+        let mut cfg = Config::new(
             (dma_channel, dma_channel2),
             LimitingArrayReadTarget::new(buffer, 0),
             tx,
-        )
-        .start();
+        );
+        cfg.bswap(true);
+
         Self {
-            dma: (Some(DmaState::IDLE(cfg))),
+            dma: (Some(DmaState::IDLE(cfg.start()))),
             second_buffer: Some(LimitingArrayReadTarget::new(buffer2, 0)),
         }
     }
 
-    pub fn do_tranfer(&mut self, buffer: &'static mut [T]) -> &'static mut [T] {
+    #[inline(always)]
+    pub fn do_tranfer(&mut self, buffer: &'static mut [T], max: u32) -> &'static mut [T] {
         let dma_state = core::mem::replace(&mut self.dma, None).unwrap();
-        let new_data: LimitingArrayReadTarget<T> =
-            LimitingArrayReadTarget::new(buffer, buffer.len() as u32);
+        let new_data: LimitingArrayReadTarget<T> = LimitingArrayReadTarget::new(buffer, max);
         let (free_buffer, new_dma_state) = match dma_state {
             DmaState::IDLE(transfer) => {
                 let state = transfer.read_next(new_data);
@@ -107,8 +109,13 @@ where
     TO: WriteTarget<TransmittedWord = T> + EndlessWriteTarget,
 {
     type Item = T;
-    fn send_scanline(&mut self, line: &'static mut [Self::Item]) -> &'static mut [Self::Item] {
-        self.do_tranfer(line)
+
+    fn send_scanline(
+        &mut self,
+        line: &'static mut [Self::Item],
+        max: u32,
+    ) -> &'static mut [Self::Item] {
+        self.do_tranfer(line, max)
     }
 }
 

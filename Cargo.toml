@@ -5,10 +5,10 @@ version = "0.1.0"
 license = "MIT OR Apache-2.0"
 
 [dependencies]
+byte-slice-cast = { version = "1.2.2", default-features = false }
 cortex-m = "0.7"
 cortex-m-rt = "0.7"
 embedded-hal = { version = "1.0.0" }
-
 defmt = "0.3"
 defmt-rtt = "0.4"
 panic-probe = { version = "0.3", features = ["print-defmt"] }
@@ -32,6 +32,7 @@ ili9341 = { path = "C:\\Users\\pablo\\projects\\ili9341-rs", features = [
     "embedded-graphics-core",
     "graphics",
 ], default-features = false }
+embedded-graphics-core = "0.4.0"
 embedded-graphics = "0.8.1"
 gb-core = { path = "C:\\Users\\pablo\\projects\\rust-gb\\gb-core" }
 embedded-alloc = "0.5.1"
@@ -59,25 +60,26 @@ rp2040-hal = { path = "C:\\Users\\pablo\\projects\\rp-hal\\rp2040-hal" }
 # rp2040-hal = { version="0.10", features=["rt", "critical-section-impl"] }
 # rp2040-boot2 = "0.3"
 
-
+#bytemuck = "1.18.0"
 # cargo build/run
 [profile.dev]
 codegen-units = 1
-debug = 2
+debug = true
 debug-assertions = true
 incremental = false
 opt-level = 0
-overflow-checks = false
+overflow-checks = true
 
 # cargo build/run --release
 [profile.release]
 codegen-units = 1
-debug = 0
+debug = 2
 debug-assertions = false
 incremental = false
 lto = 'fat'
 opt-level = 3
 overflow-checks = false
+panic = "abort"
 
 # do not optimize proc-macro crates = faster builds from scratch
 [profile.dev.build-override]
@@ -87,6 +89,13 @@ debug-assertions = false
 opt-level = 0
 overflow-checks = false
 
+# [profile.dev.ili9341.build-override]
+# codegen-units = 8
+# debug = true
+# debug-assertions = false
+# opt-level = 0
+# overflow-checks = false
+
 [profile.release.build-override]
 codegen-units = 1
 debug = false
@@ -94,14 +103,6 @@ debug-assertions = false
 opt-level = 3
 overflow-checks = false
 
-# cargo test
-[profile.test]
-codegen-units = 1
-debug = 2
-debug-assertions = true
-incremental = false
-opt-level = 3
-overflow-checks = false
 
 # cargo test --release
 [profile.bench]

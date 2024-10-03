@@ -26,6 +26,7 @@ impl<
             height_ceil_calcs: generate_scaling_ratio(calc_out_height_frac, IN_HEIGHT),
         }
     }
+    #[inline(always)]
     pub fn scale_iterator<'a, T, I>(&'a self, iterator: I) -> impl Iterator<Item = T> + 'a
     where
         I: Iterator<Item = T> + 'a,
