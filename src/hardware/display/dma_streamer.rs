@@ -87,7 +87,7 @@ where
         sm
     }
     #[inline(always)]
-    pub fn compute_line<DO, T: LineTransfer<Item = DO>>(
+    fn compute_line<DO, T: LineTransfer<Item = DO>>(
         mut transfer: T,
         mut buffer: &'static mut [DO],
         iterator: &mut dyn Iterator<Item = DO>,
@@ -111,7 +111,7 @@ where
     }
 
     #[inline(always)]
-    pub fn compute_line_u16<T: LineTransfer<Item = u16>, F>(
+    fn compute_line_u16<T: LineTransfer<Item = u16>, F>(
         mut transfer: T,
         mut buffer: &'static mut [u16],
         iterator: &mut dyn Iterator<Item = u16>,

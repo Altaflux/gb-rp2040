@@ -6,6 +6,8 @@ mod spi_pio_interface;
 
 pub use dma_streamer::DmaStreamer;
 use dma_transfer::DmaTransfer;
+#[allow(unused_imports)]
+pub use parallel_8bit_interface::Parallel8BitDmaInterface;
 pub use scaler::ScreenScaler;
 pub use spi_pio_interface::SpiPioDmaInterface;
 trait LineTransfer {
