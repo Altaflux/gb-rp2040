@@ -224,23 +224,23 @@ where
         }
         DataFormat::U8Iter(iter) => {
             iface.set_8bit_mode();
-            let tx = iface.tx.as_mut().unwrap();
-            for i in iter {
-                while !tx.write(i as u32) {}
-            }
-            while !tx.is_empty() {}
+            let tx = iface.tx.take().unwrap();
+            let tx = iface.streamer.stream_8b(tx.transfer_size(Byte), iter);
+            iface.tx = Some(tx.transfer_size(HalfWord));
             Ok(())
         }
         DataFormat::U16BEIter(iter) => {
             iface.set_16bit_mode();
             let tx = iface.tx.take().unwrap();
-            iface.streamer.stream_16b(tx, iter, u16::to_be);
+            let tx = iface.streamer.stream_16b(tx, iter, u16::to_be);
+            iface.tx = Some(tx);
             Ok(())
         }
         DataFormat::U16LEIter(iter) => {
             iface.set_16bit_mode();
             let tx = iface.tx.take().unwrap();
-            iface.streamer.stream_16b(tx, iter, u16::to_le);
+            let tx = iface.streamer.stream_16b(tx, iter, u16::to_le);
+            iface.tx = Some(tx);
             Ok(())
         }
         _ => Err(DisplayError::DataFormatNotImplemented),
