@@ -177,43 +177,39 @@ where
 {
     match words {
         DataFormat::U8(slice) => {
-            // iface.set_8bit_mode();
-            // let tx = iface.tx.as_mut().unwrap();
-            // for i in slice {
-            //     while !tx.write(*i as u32) {}
-            // }
-            // while !iface.tx.as_mut().unwrap().is_empty() {}
-            self::send_data(iface, DataFormat::U8Iter(&mut slice.into_iter().cloned())).unwrap();
+            iface.set_8bit_mode();
+            let tx = iface.tx.take().unwrap();
+            let tx = iface
+                .streamer
+                .stream_8b(tx.transfer_size(Byte), &mut slice.iter().cloned());
+            iface.tx = Some(tx.transfer_size(HalfWord));
             Ok(())
         }
         DataFormat::U16(slice) => {
             iface.set_16bit_mode();
-            let tx = iface.tx.as_mut().unwrap();
-            for i in slice {
-                let tmp = (*i) as u32;
-                while !tx.write(tmp) {}
-            }
-            while !tx.is_empty() {}
+            let tx = iface.tx.take().unwrap();
+            let tx = iface
+                .streamer
+                .stream_16b(tx, &mut slice.iter().cloned(), |d| d);
+            iface.tx = Some(tx);
             Ok(())
         }
         DataFormat::U16BE(slice) => {
             iface.set_16bit_mode();
-            let tx = iface.tx.as_mut().unwrap();
-            for i in slice {
-                let tmp = (*i).to_be() as u32;
-                while !tx.write(tmp) {}
-            }
-            while !tx.is_empty() {}
+            let tx = iface.tx.take().unwrap();
+            let tx = iface
+                .streamer
+                .stream_16b(tx, &mut slice.iter().cloned(), u16::to_be);
+            iface.tx = Some(tx);
             Ok(())
         }
         DataFormat::U16LE(slice) => {
             iface.set_16bit_mode();
-            let tx = iface.tx.as_mut().unwrap();
-            for i in slice {
-                let tmp = (*i).to_le() as u32;
-                while !tx.write(tmp) {}
-            }
-            while !tx.is_empty() {}
+            let tx = iface.tx.take().unwrap();
+            let tx = iface
+                .streamer
+                .stream_16b(tx, &mut slice.iter().cloned(), u16::to_le);
+            iface.tx = Some(tx);
             Ok(())
         }
         DataFormat::U8Iter(iter) => {
