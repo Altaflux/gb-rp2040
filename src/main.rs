@@ -213,19 +213,11 @@ fn main() -> ! {
     //////////DMA
 
     let spare: &'static mut [u16] =
-        cortex_m::singleton!(: [u16;SCREEN_WIDTH * 3]  = [0u16; SCREEN_WIDTH * 3 ])
+        cortex_m::singleton!(: [u16;(SCREEN_WIDTH * 3) * 3]  = [0u16; (SCREEN_WIDTH * 3) * 3 ])
             .unwrap()
             .as_mut_slice();
 
-    let dm_spare: &'static mut [u16] =
-        cortex_m::singleton!(: [u16;SCREEN_WIDTH * 3]  = [0u16; SCREEN_WIDTH * 3 ])
-            .unwrap()
-            .as_mut_slice();
-    let dm_spare2: &'static mut [u16] =
-        cortex_m::singleton!(: [u16;SCREEN_WIDTH * 3]  = [0u16; SCREEN_WIDTH * 3 ])
-            .unwrap()
-            .as_mut_slice();
-    let mut streamer = stream_display::Streamer::new(dma.ch0, dma.ch1, dm_spare, spare, dm_spare2);
+    let mut streamer = stream_display::Streamer::new(dma.ch0, dma.ch1, spare);
 
     // let pio_spi_interface = display::spi_pio_16::SpiPioInterfaceMultiBit::new(
     //     3,
@@ -291,11 +283,7 @@ fn main() -> ! {
     let _ = pins.gpio21.into_function::<hal::gpio::FunctionPio1>();
     let _ = pins.gpio22.into_function::<hal::gpio::FunctionPio1>();
     let audio_buffer: &'static mut [u16] =
-        cortex_m::singleton!(: [u16; 2000 * 3]  = [0u16;  2000 * 3 ])
-            .unwrap()
-            .as_mut_slice();
-    let audio_buffer2: &'static mut [u16] =
-        cortex_m::singleton!(: [u16; 2000 * 3]  = [0u16;  2000 * 3 ])
+        cortex_m::singleton!(: [u16; (2000 * 3) * 3]  = [0u16;  (2000 * 3) * 3 ])
             .unwrap()
             .as_mut_slice();
     let i2s_interface = I2sPioInterfaceDB::new(
@@ -308,7 +296,6 @@ fn main() -> ! {
         (21, 22),
         20,
         audio_buffer,
-        audio_buffer2,
     );
     //////////////////////
     let screen = GameboyLineBufferDisplay::new(timer);

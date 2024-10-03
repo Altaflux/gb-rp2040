@@ -19,19 +19,16 @@ where
     CH1: SingleChannel,
     CH2: SingleChannel,
 {
-    pub fn new(
-        channel1: CH1,
-        channel2: CH2,
-        spare_buffer: &'static mut [u16],
-        main_buffer: &'static mut [u16],
-        spare_buffer2: &'static mut [u16],
-    ) -> Self {
+    pub fn new(channel1: CH1, channel2: CH2, spare_buffer: &'static mut [u16]) -> Self {
+        let chunk_size = spare_buffer.len() / 3;
+        let (part1, rest) = spare_buffer.split_at_mut(chunk_size);
+        let (part2, part3) = rest.split_at_mut(chunk_size);
         Self {
             dma_channel1: Some(channel1),
             dma_channel2: Some(channel2),
-            spare_buffer: Some(spare_buffer),
-            spare_buffer2: Some(spare_buffer2),
-            main_buffer: Some(main_buffer),
+            spare_buffer: Some(part1),
+            spare_buffer2: Some(part2),
+            main_buffer: Some(part3),
         }
     }
 

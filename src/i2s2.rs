@@ -1,6 +1,5 @@
 use crate::rp_hal::hal;
 
-
 use hal::pio::UninitStateMachine;
 use hal::pio::{PIOExt, PIO};
 use hal::pio::{StateMachineIndex, Tx};
@@ -10,8 +9,8 @@ use hal::dma::double_buffer::{Config as DConfig, Transfer as DTransfer};
 
 use crate::hal::dma::double_buffer::ReadNext;
 use defmt_rtt as _;
-use hal::dma::SingleChannel;
 use hal::dma::ReadTarget;
+use hal::dma::SingleChannel;
 type ToType<P, SM> = Tx<(P, SM), hal::dma::HalfWord>;
 enum DmaState<
     CH1: SingleChannel,
@@ -52,7 +51,6 @@ where
         clock_pin: (u8, u8),
         data_pin: u8,
         buffer: &'static mut [u16],
-        buffer2: &'static mut [u16],
     ) -> Self
     where
         P: PIOExt,
@@ -91,7 +89,8 @@ where
         let _ = video_sm.start();
         let to_dest = vid_tx.transfer_size(hal::dma::HalfWord);
 
-        let from = LimitingArrayReadTarget::new(buffer, buffer.len() as u32);
+        let (buffer1, buffer2) = buffer.split_at_mut(buffer.len() / 2);
+        let from = LimitingArrayReadTarget::new(buffer1, buffer1.len() as u32);
         let from2 = LimitingArrayReadTarget::new(buffer2, buffer2.len() as u32);
         let cfg = DConfig::new((channel, channel2), from, to_dest).start();
 

@@ -251,6 +251,17 @@ where
         new_mode
     }
 
+    #[inline(always)]
+    pub fn is_idle(&mut self) -> bool {
+        let mode = self.mode.take().unwrap();
+        let is_idle = match mode {
+            PioMode::ByteMode(ref pio) => pio.0.tx.is_empty(),
+            PioMode::HalfWordMode(ref pio) => pio.1.tx.is_empty(),
+        };
+        self.mode = Some(mode);
+        is_idle
+    }
+
     // pub fn transfer_16bit_mode<F>(mut self, mut callback: F) -> Self
     // where
     //     F: FnMut(Tx<(P, SM), HalfWord>) -> Tx<(P, SM), HalfWord>,
@@ -292,6 +303,12 @@ where
                     while !tx.is_empty() {}
                     return tx;
                 });
+                // let pio_mode = core::mem::replace(&mut self.mode, None).unwrap();
+                // let (mut byte_sm, half_byte_sm) = Self::set_8bit_mode(pio_mode);
+                // byte_sm.tx = self
+                //     .streamer
+                //     .stream_8b(byte_sm.tx, &mut slice.iter().cloned());
+                // self.mode = Some(PioMode::ByteMode((byte_sm, half_byte_sm)));
 
                 Ok(())
             }
@@ -367,12 +384,14 @@ where
 {
     #[inline(always)]
     fn send_commands(&mut self, cmd: display_interface::DataFormat<'_>) -> Result {
+        while !self.is_idle() {}
         self.rs.set_low().map_err(|_| DisplayError::RSError)?;
         self.send_data(cmd)?;
         Ok(())
     }
     #[inline(always)]
     fn send_data(&mut self, buf: display_interface::DataFormat<'_>) -> Result {
+        while !self.is_idle() {}
         self.rs.set_high().map_err(|_| DisplayError::RSError)?;
         self.send_data(buf)?;
         Ok(())
