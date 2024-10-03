@@ -219,17 +219,7 @@ fn main() -> ! {
 
     let mut streamer = stream_display::Streamer::new(dma.ch0, dma.ch1, spare);
 
-    // let pio_spi_interface = display::spi_pio_16::SpiPioInterfaceMultiBit::new(
-    //     3,
-    //     screen_dc,
-    //     &mut pio_0,
-    //     sm0_1,
-    //     sm0_0,
-    //     spi_sclk.id().num,
-    //     spi_mosi.id().num,
-    // );
-
-    let pio_spi_interface = display::spi_pio_16_dma::SpiPioInterfaceMultiBitDma::new(
+    let display_interface = display::spi_pio_16::SpiPioInterfaceMultiBit::new(
         3,
         screen_dc,
         &mut pio_0,
@@ -237,14 +227,24 @@ fn main() -> ! {
         sm0_0,
         spi_sclk.id().num,
         spi_mosi.id().num,
-        streamer,
     );
+
+    // let display_interface = display::spi_pio_16_dma::SpiPioInterfaceMultiBitDma::new(
+    //     3,
+    //     screen_dc,
+    //     &mut pio_0,
+    //     sm0_1,
+    //     sm0_0,
+    //     spi_sclk.id().num,
+    //     spi_mosi.id().num,
+    //     streamer,
+    // );
     ///////////////////////////////
-    // let interface =
+    // let display_interface =
     //     pio_interface::PioInterface::new(3, rs, &mut pio_0, sm0_0, rw.id().num, (3, 10), endianess);
 
     let mut display = ili9341::Ili9341::new_orig(
-        pio_spi_interface,
+        display_interface,
         DummyOutputPin,
         &mut timer,
         ili9341::Orientation::Landscape,
@@ -307,39 +307,40 @@ fn main() -> ! {
     let mut loop_counter: usize = 0;
     loop {
         let start_time = timer.get_counter();
-        // display = display
-        //     .async_transfer_mode(
-        //         0,
-        //         0,
-        //         (SCREEN_HEIGHT - 1) as u16,
-        //         (SCREEN_WIDTH - 1) as u16,
-        //         // (160 - 1) as u16,
-        //         // (144 - 1) as u16,
-        //         |mut iface| {
-        //             ///////////////////
-        //             iface.transfer_16bit_mode(|sm| {
-        //                 streamer.stream::<_>(
-        //                     sm,
-        //                     &mut scaler.scale_iterator(GameVideoIter::new(&mut gameboy)),
-        //                 )
-        //             });
-        //             ///////////////////
-        //             // iface.iterator_16bit_mode(
-        //             //     &mut scaler.scale_iterator(GameVideoIter::new(&mut gameboy)),
-        //             // );
-        //             ///////////////////
-        //             // iface.transfer_16bit_mode_two(|sm, mut streamer| {
-        //             //     let old_sm = streamer.stream::<_>(
-        //             //         sm,
-        //             //         &mut scaler.scale_iterator(GameVideoIter::new(&mut gameboy)),
-        //             //     );
-        //             //     (old_sm, streamer)
-        //             // });
-        //             ///////////////////
-        //             iface
-        //         },
-        //     )
-        //     .unwrap();
+        display = display
+            .async_transfer_mode(
+                0,
+                0,
+                (SCREEN_HEIGHT - 1) as u16,
+                (SCREEN_WIDTH - 1) as u16,
+                // (160 - 1) as u16,
+                // (144 - 1) as u16,
+                |mut iface| {
+                    ///////////////////
+                    iface.transfer_16bit_mode(|sm| {
+                        streamer.stream_16b::<_, _>(
+                            sm,
+                            &mut scaler.scale_iterator(GameVideoIter::new(&mut gameboy)),
+                            u16::to_be,
+                        )
+                    });
+                    ///////////////////
+                    // iface.iterator_16bit_mode(
+                    //     &mut scaler.scale_iterator(GameVideoIter::new(&mut gameboy)),
+                    // );
+                    ///////////////////
+                    // iface.transfer_16bit_mode_two(|sm, mut streamer| {
+                    //     let old_sm = streamer.stream::<_>(
+                    //         sm,
+                    //         &mut scaler.scale_iterator(GameVideoIter::new(&mut gameboy)),
+                    //     );
+                    //     (old_sm, streamer)
+                    // });
+                    ///////////////////
+                    iface
+                },
+            )
+            .unwrap();
         let area = Rectangle::new(
             Point::new(0, 0),
             Size::new((SCREEN_HEIGHT - 1) as u32, (SCREEN_WIDTH - 1) as u32),
@@ -349,17 +350,17 @@ fn main() -> ! {
         //     .scale_iterator(GameVideoIter::new(&mut gameboy))
         //     .map(|c| Rgb565::from(RawU16::new(c)));
         // display.fill_contiguous(&area, foo).unwrap();
-        display
-            .draw_raw_iter(
-                0,
-                0,
-                (SCREEN_HEIGHT - 1) as u16,
-                (SCREEN_WIDTH - 1) as u16,
-                // (160 - 1) as u16,
-                // (144 - 1) as u16,
-                scaler.scale_iterator(GameVideoIter::new(&mut gameboy)),
-            )
-            .unwrap();
+        // display
+        //     .draw_raw_iter(
+        //         0,
+        //         0,
+        //         (SCREEN_HEIGHT - 1) as u16,
+        //         (SCREEN_WIDTH - 1) as u16,
+        //         // (160 - 1) as u16,
+        //         // (144 - 1) as u16,
+        //         scaler.scale_iterator(GameVideoIter::new(&mut gameboy)),
+        //     )
+        //     .unwrap();
 
         let end_time: rp2040_hal::fugit::Instant<u64, 1, 1000000> = timer.get_counter();
         let diff = end_time - start_time;
