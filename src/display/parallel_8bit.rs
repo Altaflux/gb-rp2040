@@ -9,7 +9,7 @@ use hal::pio::{Rx, UninitStateMachine};
 type Result = core::result::Result<(), DisplayError>;
 use hal::dma::Byte;
 use rp2040_hal::dma::SingleChannel;
-pub struct PioInterface<RS, P: PIOExt, SM: StateMachineIndex, END, CH1, CH2> {
+pub struct PioInterfaceStreamer<RS, P: PIOExt, SM: StateMachineIndex, END, CH1, CH2> {
     sm: StateMachine<(P, SM), Running>,
     tx: Option<Tx<(P, SM), HalfWord>>,
     rx: Rx<(P, SM)>,
@@ -19,7 +19,7 @@ pub struct PioInterface<RS, P: PIOExt, SM: StateMachineIndex, END, CH1, CH2> {
     pub endian_function: END,
 }
 
-impl<RS, P, SM, END, CH1, CH2> PioInterface<RS, P, SM, END, CH1, CH2>
+impl<RS, P, SM, END, CH1, CH2> PioInterfaceStreamer<RS, P, SM, END, CH1, CH2>
 where
     P: PIOExt,
     SM: StateMachineIndex,
@@ -130,6 +130,7 @@ where
         self
     }
 
+    #[allow(dead_code)]
     pub fn free(self, pio: &mut PIO<P>) -> (UninitStateMachine<(P, SM)>, RS) {
         let (sm, prg) = self.sm.uninit(self.rx, self.tx.unwrap());
         pio.uninstall(prg);
@@ -137,7 +138,8 @@ where
     }
 }
 
-impl<RS, P, SM, END, CH1, CH2> WriteOnlyDataCommand for PioInterface<RS, P, SM, END, CH1, CH2>
+impl<RS, P, SM, END, CH1, CH2> WriteOnlyDataCommand
+    for PioInterfaceStreamer<RS, P, SM, END, CH1, CH2>
 where
     P: PIOExt,
     SM: StateMachineIndex,
@@ -169,7 +171,7 @@ struct PIOLabelDefines {
 
 #[inline(always)]
 fn send_data<RS, P, SM, END, CH1, CH2>(
-    iface: &mut PioInterface<RS, P, SM, END, CH1, CH2>,
+    iface: &mut PioInterfaceStreamer<RS, P, SM, END, CH1, CH2>,
     words: DataFormat<'_>,
 ) -> Result
 where
