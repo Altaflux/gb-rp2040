@@ -32,6 +32,7 @@ ili9341 = { path = "C:\\Users\\pablo\\projects\\ili9341-rs", features = [
     "embedded-graphics-core",
     "graphics",
 ], default-features = false }
+embedded-graphics-core = "0.4.0"
 embedded-graphics = "0.8.1"
 gb-core = { path = "C:\\Users\\pablo\\projects\\rust-gb\\gb-core" }
 embedded-alloc = "0.5.1"
@@ -63,10 +64,10 @@ rp2040-hal = { path = "C:\\Users\\pablo\\projects\\rp-hal\\rp2040-hal" }
 # cargo build/run
 [profile.dev]
 codegen-units = 1
-debug = 2
+debug = true
 debug-assertions = true
 incremental = false
-opt-level = 3
+opt-level = 0
 overflow-checks = true
 
 # cargo build/run --release
@@ -84,6 +85,13 @@ panic = "abort"
 [profile.dev.build-override]
 codegen-units = 8
 debug = false
+debug-assertions = false
+opt-level = 0
+overflow-checks = false
+
+[profile.dev.ili9341.build-override]
+codegen-units = 8
+debug = true
 debug-assertions = false
 opt-level = 0
 overflow-checks = false

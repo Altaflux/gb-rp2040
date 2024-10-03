@@ -186,6 +186,7 @@ where
     //     self.mode = Some(PioMode::ByteMode((byte_sm, half_byte_sm)));
     // }
 
+    #[cold]
     fn set_8bit_mode(
         pio_mode: PioMode<P, SM1, SM2>,
     ) -> (
@@ -211,7 +212,7 @@ where
         new_mode
     }
 
-    #[inline(always)]
+    #[cold]
     fn set_16bit_mode(
         pio_mode: PioMode<P, SM1, SM2>,
     ) -> (

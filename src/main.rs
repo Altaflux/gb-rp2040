@@ -11,15 +11,19 @@ use alloc::vec::Vec;
 use defmt::*;
 use defmt_rtt as _;
 
+use embedded_graphics::pixelcolor::raw::RawU16;
+use embedded_graphics::pixelcolor::Rgb565;
+use embedded_graphics::prelude::{Point, RgbColor, Size, WebColors};
+use embedded_graphics::primitives::Rectangle;
 use embedded_hal::delay::DelayNs;
 use embedded_sdmmc::{SdCard, VolumeManager};
 use gameboy::display::{GameVideoIter, GameboyLineBufferDisplay};
 //use i2s::I2sPioInterface;
+use embedded_graphics_core::draw_target::DrawTarget;
+use hal::fugit::RateExtU32;
 use i2s2::I2sPioInterfaceDB;
 use ili9341::{DisplaySize, DisplaySize240x320};
 use panic_probe as _;
-
-use hal::fugit::RateExtU32;
 use rp2040_hal::dma::DMAExt;
 use rp2040_hal::{self as hal, pio::PIOExt};
 use rp2040_hal::{entry, Clock};
@@ -62,7 +66,7 @@ static ALLOCATOR: Heap = Heap::empty();
 fn main() -> ! {
     {
         use core::mem::MaybeUninit;
-        const HEAP_SIZE: usize = 180000;
+        const HEAP_SIZE: usize = 160000;
         //const HEAP_SIZE: usize = 220000;
         static mut HEAP: [MaybeUninit<u8>; HEAP_SIZE] = [MaybeUninit::uninit(); HEAP_SIZE];
         unsafe { ALLOCATOR.init(HEAP.as_ptr() as usize, HEAP_SIZE) }
@@ -221,7 +225,7 @@ fn main() -> ! {
         cortex_m::singleton!(: [u16;SCREEN_WIDTH * 3]  = [0u16; SCREEN_WIDTH * 3 ])
             .unwrap()
             .as_mut_slice();
-    let streamer = stream_display::Streamer::new(dma.ch0, dma.ch1, dm_spare, spare, dm_spare2);
+    let mut streamer = stream_display::Streamer::new(dma.ch0, dma.ch1, dm_spare, spare, dm_spare2);
 
     // let pio_spi_interface = display::spi_pio_16::SpiPioInterfaceMultiBit::new(
     //     3,
@@ -326,16 +330,16 @@ fn main() -> ! {
         //         // (144 - 1) as u16,
         //         |mut iface| {
         //             ///////////////////
-        //             // iface.transfer_16bit_mode(|sm| {
-        //             //     streamer.stream::<_>(
-        //             //         sm,
-        //             //         &mut scaler.scale_iterator(GameVideoIter::new(&mut gameboy)),
-        //             //     )
-        //             // });
+        //             iface.transfer_16bit_mode(|sm| {
+        //                 streamer.stream::<_>(
+        //                     sm,
+        //                     &mut scaler.scale_iterator(GameVideoIter::new(&mut gameboy)),
+        //                 )
+        //             });
         //             ///////////////////
-        //             iface.iterator_16bit_mode(
-        //                 &mut scaler.scale_iterator(GameVideoIter::new(&mut gameboy)),
-        //             );
+        //             // iface.iterator_16bit_mode(
+        //             //     &mut scaler.scale_iterator(GameVideoIter::new(&mut gameboy)),
+        //             // );
         //             ///////////////////
         //             // iface.transfer_16bit_mode_two(|sm, mut streamer| {
         //             //     let old_sm = streamer.stream::<_>(
@@ -349,12 +353,23 @@ fn main() -> ! {
         //         },
         //     )
         //     .unwrap();
+        let area = Rectangle::new(
+            Point::new(0, 0),
+            Size::new((SCREEN_HEIGHT - 1) as u32, (SCREEN_WIDTH - 1) as u32),
+        );
+
+        // let foo = scaler
+        //     .scale_iterator(GameVideoIter::new(&mut gameboy))
+        //     .map(|c| Rgb565::from(RawU16::new(c)));
+        // display.fill_contiguous(&area, foo).unwrap();
         display
             .draw_raw_iter(
                 0,
                 0,
                 (SCREEN_HEIGHT - 1) as u16,
                 (SCREEN_WIDTH - 1) as u16,
+                // (160 - 1) as u16,
+                // (144 - 1) as u16,
                 scaler.scale_iterator(GameVideoIter::new(&mut gameboy)),
             )
             .unwrap();

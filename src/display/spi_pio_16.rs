@@ -99,9 +99,9 @@ where
         }
     }
 
-    pub fn transfer_16bit_mode<F>(&mut self, mut callback: F)
+    pub fn transfer_16bit_mode<F>(&mut self, callback: F)
     where
-        F: FnMut(Tx<(P, SM2), HalfWord>) -> Tx<(P, SM2), HalfWord>,
+        F: FnOnce(Tx<(P, SM2), HalfWord>) -> Tx<(P, SM2), HalfWord>,
     {
         let pio_mode = core::mem::replace(&mut self.mode, None).unwrap();
         let (byte_sm, mut half_byte_sm) = Self::set_16bit_mode(pio_mode);
