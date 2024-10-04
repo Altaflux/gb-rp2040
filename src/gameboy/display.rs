@@ -1,5 +1,6 @@
 use crate::hal::timer::Instant;
 
+use embedded_hal::delay::DelayNs;
 use gb_core::hardware::Screen;
 const NANOS_IN_VSYNC: u64 = ((1.0 / 60.0) * 1000000000.0) as u64;
 pub struct GameboyLineBufferDisplay {
@@ -51,7 +52,7 @@ impl Screen for GameboyLineBufferDisplay {
             let time_delay = NANOS_IN_VSYNC.saturating_sub(nano_seconds) as u32;
             //self.delay.delay_ns(time_delay);
         }
-        self.time_counter = self.delay.get_counter();
+        self.time_counter = current_time;
     }
 
     fn frame_rate(&self) -> u8 {

@@ -67,7 +67,7 @@ where
         );
 
         let video_program_installed = pio.install(&audio_program.program).unwrap();
-        let (mut video_sm, rx, vid_tx) =
+        let (mut video_sm, _rx, vid_tx) =
             hal::pio::PIOBuilder::from_installed_program(video_program_installed)
                 .out_pins(data_pin, 1)
                 .side_set_pin_base(clock_pin.0)
