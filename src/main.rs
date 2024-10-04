@@ -227,7 +227,7 @@ fn main() -> ! {
     // );
 
     let display_reset = pins.gpio2.into_push_pull_output();
-    let mut display = ili9341::Ili9341::new_orig(
+    let mut display = ili9341::Ili9341::new(
         display_interface,
         display_reset,
         &mut timer,
