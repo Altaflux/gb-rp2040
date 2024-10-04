@@ -1,6 +1,3 @@
-//! Blinks the LED on a Pico board
-//!
-//! This will blink an LED attached to GP25, which is the pin the Pico uses for the on-board LED.
 #![no_std]
 #![no_main]
 
@@ -10,8 +7,6 @@ use alloc::boxed::Box;
 use defmt::*;
 use defmt_rtt as _;
 
-use embedded_graphics::pixelcolor::Rgb565;
-use embedded_graphics::prelude::{IntoStorage, RgbColor};
 use embedded_sdmmc::{SdCard, VolumeManager};
 use gameboy::display::GameboyLineBufferDisplay;
 
@@ -26,8 +21,6 @@ use rp2040_hal::{self as hal, pio::PIOExt};
 use rp2040_hal::{entry, Clock};
 
 extern crate alloc;
-// Provide an alias for our BSP so we can switch targets quickly.
-// Uncomment the BSP you included in Cargo.toml, the rest of the code does not need to change.
 
 use embedded_alloc::Heap;
 
@@ -39,7 +32,6 @@ mod gameboy;
 mod hardware;
 mod rp_hal;
 mod util;
-//
 
 #[link_section = ".boot2"]
 #[no_mangle]
@@ -124,7 +116,6 @@ fn main() -> ! {
         (<DisplaySize240x320 as DisplaySize>::HEIGHT as f32 / 1.0f32) as usize;
 
     ///////////////////////////////SD CARD
-    /// ///
     let spi_sclk: hal::gpio::Pin<_, _, hal::gpio::PullDown> =
         pins.gpio18.into_function::<hal::gpio::FunctionSpi>();
     let spi_mosi: hal::gpio::Pin<_, _, hal::gpio::PullDown> =
@@ -166,45 +157,23 @@ fn main() -> ! {
     let gb_rom = gb_core::hardware::rom::Rom::from_bytes(roms);
     let cartridge = gb_rom.into_cartridge();
 
-    ///////////////////////////////
-    // let spi_sclk: hal::gpio::Pin<_, _, hal::gpio::PullDown> =
-    //     pins.gpio14.into_function::<hal::gpio::FunctionSpi>();
-    // let spi_mosi: hal::gpio::Pin<_, _, hal::gpio::PullDown> =
-    //     pins.gpio15.into_function::<hal::gpio::FunctionSpi>(); //tx
-    // let spi_miso: hal::gpio::Pin<_, _, hal::gpio::PullDown> =
-    //     pins.gpio12.into_function::<hal::gpio::FunctionSpi>(); //rx
-    // let spi_screen = spi::Spi::<_, _, _, 8>::new(pac.SPI1, (spi_mosi, spi_miso, spi_sclk));
     let screen_dc: hal::gpio::Pin<
         hal::gpio::bank0::Gpio11,
         hal::gpio::FunctionSio<hal::gpio::SioOutput>,
         hal::gpio::PullDown,
     > = pins.gpio11.into_push_pull_output();
-    // let spi_screen = spi_screen.init(
-    //     &mut pac.RESETS,
-    //     clocks.peripheral_clock.freq(),
-    //     80.MHz(), // card initialization happens at low baud rate
-    //     embedded_hal::spi::MODE_0,
-    // );
-
-    // let exclusive_screen_spi =
-    //     spi_device::ExclusiveDevice::new(spi_screen, DummyOutputPin, timer).unwrap();
-    // let spi_display_interface =
-    //     display_interface_spi::SPIInterface::new(exclusive_screen_spi, screen_dc);
 
     let spi_sclk: hal::gpio::Pin<_, _, hal::gpio::PullDown> =
         pins.gpio14.into_function::<hal::gpio::FunctionPio0>();
     let spi_mosi: hal::gpio::Pin<_, _, hal::gpio::PullDown> =
         pins.gpio15.into_function::<hal::gpio::FunctionPio0>();
 
-    // /////////////
-    //////////DMA
-
-    let spare: &'static mut [u16] =
+    let display_buffer: &'static mut [u16] =
         cortex_m::singleton!(: [u16;(SCREEN_WIDTH * 3) * 3]  = [0u16; (SCREEN_WIDTH * 3) * 3 ])
             .unwrap()
             .as_mut_slice();
 
-    let streamer = hardware::display::DmaStreamer::new(dma.ch0, dma.ch1, spare);
+    let streamer = hardware::display::DmaStreamer::new(dma.ch0, dma.ch1, display_buffer);
 
     let display_interface = hardware::display::SpiPioDmaInterface::new(
         (3, 0),

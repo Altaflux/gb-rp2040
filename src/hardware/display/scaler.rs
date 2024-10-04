@@ -1,4 +1,6 @@
-use alloc::{boxed::Box, vec::Vec};
+use core::u16;
+
+use alloc::vec::Vec;
 
 pub struct ScreenScaler<
     const IN_HEIGHT: usize,
@@ -6,8 +8,8 @@ pub struct ScreenScaler<
     const OUT_HEIGHT: usize,
     const OUT_WIDTH: usize,
 > {
-    width_ceil_calcs: Box<[u16]>,
-    height_ceil_calcs: Box<[u16]>,
+    width_ceil_calcs: [u16; IN_WIDTH],
+    height_ceil_calcs: [u16; IN_HEIGHT],
 }
 
 impl<
@@ -20,10 +22,13 @@ impl<
     pub fn new() -> Self {
         let calc_out_width_frac = OUT_WIDTH as f32 / IN_WIDTH as f32;
         let calc_out_height_frac = OUT_HEIGHT as f32 / IN_HEIGHT as f32;
-
+        let mut width_ceil_calcs: [u16; IN_WIDTH] = [0u16; IN_WIDTH];
+        let mut height_ceil_calcs: [u16; IN_HEIGHT] = [0u16; IN_HEIGHT];
+        generate_scaling_ratio(calc_out_width_frac, IN_WIDTH, &mut width_ceil_calcs);
+        generate_scaling_ratio(calc_out_height_frac, IN_HEIGHT, &mut height_ceil_calcs);
         Self {
-            width_ceil_calcs: generate_scaling_ratio(calc_out_width_frac, IN_WIDTH),
-            height_ceil_calcs: generate_scaling_ratio(calc_out_height_frac, IN_HEIGHT),
+            width_ceil_calcs: width_ceil_calcs,
+            height_ceil_calcs: height_ceil_calcs,
         }
     }
     #[inline(always)]
@@ -150,12 +155,10 @@ where
     }
 }
 
-fn generate_scaling_ratio(ratio: f32, size: usize) -> Box<[u16]> {
-    let mut array = alloc::vec![0u16; size];
+fn generate_scaling_ratio(ratio: f32, size: usize, array: &mut [u16]) {
     let mut i = 0;
     while i < size {
         array[i] = num_traits::Float::ceil(ratio * (i + 1) as f32) as u16;
         i += 1;
     }
-    array.into_boxed_slice()
 }
