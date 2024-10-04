@@ -46,7 +46,6 @@ fn main() -> ! {
     {
         use core::mem::MaybeUninit;
         const HEAP_SIZE: usize = 160000;
-        //const HEAP_SIZE: usize = 220000;
         static mut HEAP: [MaybeUninit<u8>; HEAP_SIZE] = [MaybeUninit::uninit(); HEAP_SIZE];
         unsafe { ALLOCATOR.init(HEAP.as_ptr() as usize, HEAP_SIZE) }
     }
@@ -83,17 +82,17 @@ fn main() -> ! {
         &mut pac.RESETS,
     );
 
-    let rs = pins.gpio28.into_push_pull_output();
-    let rw = pins.gpio27.into_function::<hal::gpio::FunctionPio0>();
+    // let rs = pins.gpio28.into_push_pull_output();
+    // let rw = pins.gpio27.into_function::<hal::gpio::FunctionPio0>();
 
-    let _ = pins.gpio3.into_function::<hal::gpio::FunctionPio0>();
-    let _ = pins.gpio4.into_function::<hal::gpio::FunctionPio0>();
-    let _ = pins.gpio5.into_function::<hal::gpio::FunctionPio0>();
-    let _ = pins.gpio6.into_function::<hal::gpio::FunctionPio0>();
-    let _ = pins.gpio7.into_function::<hal::gpio::FunctionPio0>();
-    let _ = pins.gpio8.into_function::<hal::gpio::FunctionPio0>();
-    let _ = pins.gpio9.into_function::<hal::gpio::FunctionPio0>();
-    let _ = pins.gpio10.into_function::<hal::gpio::FunctionPio0>();
+    // let _ = pins.gpio3.into_function::<hal::gpio::FunctionPio0>();
+    // let _ = pins.gpio4.into_function::<hal::gpio::FunctionPio0>();
+    // let _ = pins.gpio5.into_function::<hal::gpio::FunctionPio0>();
+    // let _ = pins.gpio6.into_function::<hal::gpio::FunctionPio0>();
+    // let _ = pins.gpio7.into_function::<hal::gpio::FunctionPio0>();
+    // let _ = pins.gpio8.into_function::<hal::gpio::FunctionPio0>();
+    // let _ = pins.gpio9.into_function::<hal::gpio::FunctionPio0>();
+    // let _ = pins.gpio10.into_function::<hal::gpio::FunctionPio0>();
 
     let (mut pio_0, sm0_0, sm0_1, _, _) = pac.PIO0.split(&mut pac.RESETS);
 
@@ -147,7 +146,7 @@ fn main() -> ! {
     let gb_rom = gb_core::hardware::rom::Rom::from_bytes(roms);
     let cartridge = gb_rom.into_cartridge();
 
-    let screen_dc: hal::gpio::Pin<
+    let screen_data_command_pin: hal::gpio::Pin<
         hal::gpio::bank0::Gpio11,
         hal::gpio::FunctionSio<hal::gpio::SioOutput>,
         hal::gpio::PullDown,
@@ -167,7 +166,7 @@ fn main() -> ! {
 
     let display_interface = hardware::display::SpiPioDmaInterface::new(
         (3, 0),
-        screen_dc,
+        screen_data_command_pin,
         &mut pio_0,
         sm0_1,
         sm0_0,
@@ -201,7 +200,6 @@ fn main() -> ! {
     core::mem::drop(boot_rom_data);
 
     //////////////////////AUDIO SETUP
-    ///
     let sample_rate: u32 = 16000;
     let clock_divider: u32 = 369_000_000 * 4 / sample_rate;
 
@@ -211,16 +209,6 @@ fn main() -> ! {
         "Suggested dividers: int: {} frac: {}",
         int_divider, frak_divider
     );
-
-    let clock_frequency = 16000 * 16 * 2;
-    let clock_divider = 369_000_000. / clock_frequency as f64 / 2.;
-    let int_divider2 = (clock_frequency >> 8) as u16;
-    let frak_divider2 = (clock_frequency & 0xFF) as u8;
-    info!(
-        "Suggested dividers2: int: {} frac: {}",
-        int_divider2, frak_divider2
-    );
-    info!("Suggested dividers: clock_divider: {}", clock_divider);
 
     let _ = pins.gpio20.into_function::<hal::gpio::FunctionPio1>();
     let _ = pins.gpio21.into_function::<hal::gpio::FunctionPio1>();
