@@ -7,6 +7,9 @@ use alloc::boxed::Box;
 use defmt::*;
 use defmt_rtt as _;
 
+use embedded_graphics_core::pixelcolor::Rgb565;
+use embedded_graphics_core::prelude::{IntoStorage, RgbColor};
+use embedded_hal::digital::OutputPin;
 use embedded_sdmmc::{SdCard, VolumeManager};
 use gameboy::display::GameboyLineBufferDisplay;
 
@@ -26,6 +29,7 @@ use embedded_alloc::Heap;
 
 use gb_core::gameboy::GameBoy;
 use hal::{pac, sio::Sio, spi, watchdog::Watchdog};
+use util::DummyOutputPin;
 
 mod clocks;
 mod gameboy;
@@ -104,17 +108,65 @@ fn main() -> ! {
     const SCREEN_HEIGHT: usize =
         (<DisplaySize240x320 as DisplaySize>::HEIGHT as f32 / 1.0f32) as usize;
 
+    // let b_button = pins.gpio16.into_pull_down_input();
+    // let a_button = pins.gpio17.into_pull_down_input();
+    // let right_button = pins.gpio18.into_pull_down_input();
+    // let down_button = pins.gpio19.into_pull_down_input();
+    // let left_button = pins.gpio20.into_pull_down_input();
+    // let up_button = pins.gpio21.into_pull_down_input();
+    // let select_button = pins.gpio22.into_pull_down_input();
+    // let start_button = pins.gpio26.into_pull_down_input();
+
+    // INIT DISPLAY
+    let screen_data_command_pin = pins.gpio3.into_push_pull_output();
+
+    let spi_sclk: hal::gpio::Pin<_, _, hal::gpio::PullDown> =
+        pins.gpio5.into_function::<hal::gpio::FunctionPio0>();
+    let spi_mosi: hal::gpio::Pin<_, _, hal::gpio::PullDown> =
+        pins.gpio4.into_function::<hal::gpio::FunctionPio0>();
+
+    let display_reset = pins.gpio2.into_push_pull_output();
+
+    let display_buffer: &'static mut [u16] =
+        cortex_m::singleton!(: [u16;(SCREEN_WIDTH * 3) * 3]  = [0u16; (SCREEN_WIDTH * 3) * 3 ])
+            .unwrap()
+            .as_mut_slice();
+
+    let streamer = hardware::display::DmaStreamer::new(dma.ch0, dma.ch1, display_buffer);
+
+    let display_interface = hardware::display::SpiPioDmaInterface::new(
+        (3, 0),
+        screen_data_command_pin,
+        &mut pio_0,
+        sm0_1,
+        sm0_0,
+        spi_sclk.id().num,
+        spi_mosi.id().num,
+        streamer,
+    );
+
+    let mut display = ili9341::Ili9341::new(
+        display_interface,
+        display_reset,
+        &mut timer,
+        ili9341::Orientation::LandscapeFlipped,
+        ili9341::DisplaySize240x320,
+    )
+    .unwrap();
+
+    display.clear_screen(Rgb565::RED.into_storage()).unwrap();
+
     ///////////////////////////////SD CARD
     let spi_sclk: hal::gpio::Pin<_, _, hal::gpio::PullDown> =
-        pins.gpio18.into_function::<hal::gpio::FunctionSpi>();
+        pins.gpio14.into_function::<hal::gpio::FunctionSpi>();
     let spi_mosi: hal::gpio::Pin<_, _, hal::gpio::PullDown> =
-        pins.gpio19.into_function::<hal::gpio::FunctionSpi>();
-    let spi_cs = pins.gpio17.into_push_pull_output();
+        pins.gpio15.into_function::<hal::gpio::FunctionSpi>();
+    let spi_cs = pins.gpio13.into_push_pull_output();
     let spi_miso: hal::gpio::Pin<_, _, hal::gpio::PullDown> =
-        pins.gpio16.into_function::<hal::gpio::FunctionSpi>();
+        pins.gpio12.into_function::<hal::gpio::FunctionSpi>();
 
     // Create the SPI driver instance for the SPI0 device
-    let spi = spi::Spi::<_, _, _, 8>::new(pac.SPI0, (spi_mosi, spi_miso, spi_sclk));
+    let spi = spi::Spi::<_, _, _, 8>::new(pac.SPI1, (spi_mosi, spi_miso, spi_sclk));
     let spi = spi.init(
         &mut pac.RESETS,
         clocks.peripheral_clock.freq(),
@@ -146,54 +198,6 @@ fn main() -> ! {
     let gb_rom = gb_core::hardware::rom::Rom::from_bytes(roms);
     let cartridge = gb_rom.into_cartridge();
 
-    let screen_data_command_pin: hal::gpio::Pin<
-        hal::gpio::bank0::Gpio11,
-        hal::gpio::FunctionSio<hal::gpio::SioOutput>,
-        hal::gpio::PullDown,
-    > = pins.gpio11.into_push_pull_output();
-
-    let spi_sclk: hal::gpio::Pin<_, _, hal::gpio::PullDown> =
-        pins.gpio14.into_function::<hal::gpio::FunctionPio0>();
-    let spi_mosi: hal::gpio::Pin<_, _, hal::gpio::PullDown> =
-        pins.gpio15.into_function::<hal::gpio::FunctionPio0>();
-
-    let display_buffer: &'static mut [u16] =
-        cortex_m::singleton!(: [u16;(SCREEN_WIDTH * 3) * 3]  = [0u16; (SCREEN_WIDTH * 3) * 3 ])
-            .unwrap()
-            .as_mut_slice();
-
-    let streamer = hardware::display::DmaStreamer::new(dma.ch0, dma.ch1, display_buffer);
-
-    let display_interface = hardware::display::SpiPioDmaInterface::new(
-        (3, 0),
-        screen_data_command_pin,
-        &mut pio_0,
-        sm0_1,
-        sm0_0,
-        spi_sclk.id().num,
-        spi_mosi.id().num,
-        streamer,
-    );
-    // let display_interface = hardware::display::Parallel8BitDmaInterface::new(
-    //     (3, 0),
-    //     rs,
-    //     &mut pio_0,
-    //     sm0_0,
-    //     rw.id().num,
-    //     (3, 10),
-    //     streamer,
-    // );
-
-    let display_reset = pins.gpio2.into_push_pull_output();
-    let mut display = ili9341::Ili9341::new(
-        display_interface,
-        display_reset,
-        &mut timer,
-        ili9341::Orientation::Landscape,
-        ili9341::DisplaySize240x320,
-    )
-    .unwrap();
-
     let boot_rom = gb_core::hardware::boot_rom::Bootrom::new(Some(
         gb_core::hardware::boot_rom::BootromData::from_bytes(&*boot_rom_data),
     ));
@@ -210,9 +214,9 @@ fn main() -> ! {
         int_divider, frak_divider
     );
 
-    let _ = pins.gpio20.into_function::<hal::gpio::FunctionPio1>();
-    let _ = pins.gpio21.into_function::<hal::gpio::FunctionPio1>();
-    let _ = pins.gpio22.into_function::<hal::gpio::FunctionPio1>();
+    let _i2s_din = pins.gpio9.into_function::<hal::gpio::FunctionPio1>();
+    let _i2s_bclk = pins.gpio10.into_function::<hal::gpio::FunctionPio1>();
+    let _i2s_lrc = pins.gpio11.into_function::<hal::gpio::FunctionPio1>();
     let audio_buffer: &'static mut [u16] =
         cortex_m::singleton!(: [u16; (2000 * 3) * 3]  = [0u16;  (2000 * 3) * 3 ])
             .unwrap()
@@ -224,8 +228,8 @@ fn main() -> ! {
         (int_divider as u16, frak_divider as u8),
         &mut pio_1,
         sm_1_0,
-        (21, 22),
-        20,
+        (10, 11),
+        9,
         audio_buffer,
     );
     //////////////////////
