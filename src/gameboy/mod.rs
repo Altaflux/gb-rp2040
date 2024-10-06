@@ -107,7 +107,7 @@ impl<'a> InputButtonMapperTwo<'a> {
     }
     #[inline(always)]
     pub fn handle_button_clicks<SC: Screen>(&mut self, gameboy: &mut GameBoy<'a, SC>) {
-        ///
+        ////
         if self.b_button.is_high().unwrap() {
             if self.b_button_state == false {
                 info!("B pressed");
