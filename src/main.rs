@@ -9,11 +9,11 @@ use defmt_rtt as _;
 
 use embedded_graphics_core::pixelcolor::Rgb565;
 use embedded_graphics_core::prelude::{IntoStorage, RgbColor};
-use embedded_hal::digital::OutputPin;
+use embedded_hal::digital::InputPin;
 use embedded_sdmmc::{SdCard, VolumeManager};
 use gameboy::display::GameboyLineBufferDisplay;
 
-use gameboy::GameEmulationHandler;
+use gameboy::{GameEmulationHandler, InputButtonMapperTwo};
 use hal::fugit::RateExtU32;
 
 use hardware::display::ScreenScaler;
@@ -29,7 +29,6 @@ use embedded_alloc::Heap;
 
 use gb_core::gameboy::GameBoy;
 use hal::{pac, sio::Sio, spi, watchdog::Watchdog};
-use util::DummyOutputPin;
 
 mod clocks;
 mod gameboy;
@@ -108,15 +107,25 @@ fn main() -> ! {
     const SCREEN_HEIGHT: usize =
         (<DisplaySize240x320 as DisplaySize>::HEIGHT as f32 / 1.0f32) as usize;
 
-    // let b_button = pins.gpio16.into_pull_down_input();
-    // let a_button = pins.gpio17.into_pull_down_input();
-    // let right_button = pins.gpio18.into_pull_down_input();
-    // let down_button = pins.gpio19.into_pull_down_input();
-    // let left_button = pins.gpio20.into_pull_down_input();
-    // let up_button = pins.gpio21.into_pull_down_input();
-    // let select_button = pins.gpio22.into_pull_down_input();
-    // let start_button = pins.gpio26.into_pull_down_input();
+    let mut b_button = pins.gpio16.into_pull_down_input().into_dyn_pin();
+    let mut a_button = pins.gpio17.into_pull_down_input().into_dyn_pin();
+    let mut right_button = pins.gpio18.into_pull_down_input().into_dyn_pin();
+    let mut down_button = pins.gpio19.into_pull_down_input().into_dyn_pin();
+    let mut left_button = pins.gpio20.into_pull_down_input().into_dyn_pin();
+    let mut up_button = pins.gpio21.into_pull_down_input().into_dyn_pin();
+    let mut select_button = pins.gpio22.into_pull_down_input().into_dyn_pin();
+    let mut start_button = pins.gpio26.into_pull_down_input().into_dyn_pin();
 
+    let mut button_handler = InputButtonMapperTwo::new(
+        &mut a_button,
+        &mut b_button,
+        &mut start_button,
+        &mut select_button,
+        &mut up_button,
+        &mut down_button,
+        &mut left_button,
+        &mut right_button,
+    );
     // INIT DISPLAY
     let screen_data_command_pin = pins.gpio3.into_push_pull_output();
 
@@ -248,7 +257,7 @@ fn main() -> ! {
                 0,
                 (SCREEN_HEIGHT - 1) as u16,
                 (SCREEN_WIDTH - 1) as u16,
-                scaler.scale_iterator(GameEmulationHandler::new(&mut gameboy)),
+                scaler.scale_iterator(GameEmulationHandler::new(&mut gameboy, &mut button_handler)),
             )
             .unwrap();
 

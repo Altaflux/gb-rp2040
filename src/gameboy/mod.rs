@@ -1,23 +1,36 @@
+use core::convert::Infallible;
+
 use display::GameboyLineBufferDisplay;
-use gb_core::gameboy::GameBoy;
+use embedded_hal::digital::InputPin;
+use gb_core::{gameboy::GameBoy, hardware::Screen};
 
 pub mod display;
 pub mod rom;
-
-pub struct GameEmulationHandler<'a, 'b> {
+use defmt::*;
+use defmt_rtt as _;
+pub struct GameEmulationHandler<'a, 'b, 'c> {
     gameboy: &'a mut GameBoy<'b, GameboyLineBufferDisplay>,
     current_line_index: usize,
+    button_handler: &'a mut InputButtonMapperTwo<'c>,
 }
-impl<'a, 'b> GameEmulationHandler<'a, 'b> {
-    pub fn new(gameboy: &'a mut GameBoy<'b, GameboyLineBufferDisplay>) -> Self {
+impl<'a, 'b, 'c> GameEmulationHandler<'a, 'b, 'c> {
+    pub fn new(
+        gameboy: &'a mut GameBoy<'b, GameboyLineBufferDisplay>,
+        button_handler: &'a mut InputButtonMapperTwo<'c>,
+    ) -> Self {
         Self {
             gameboy: gameboy,
             current_line_index: 0,
+            button_handler,
         }
     }
 }
 
-impl<'a, 'b> Iterator for GameEmulationHandler<'a, 'b> {
+impl<'a, 'b, 'c> Iterator for GameEmulationHandler<'a, 'b, 'c>
+where
+    'b: 'c,
+    'c: 'b,
+{
     type Item = u16;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -31,12 +44,179 @@ impl<'a, 'b> Iterator for GameEmulationHandler<'a, 'b> {
                 if self.current_line_index + 1 >= 160 {
                     self.current_line_index = 0;
                     self.gameboy.get_screen().line_complete = false;
+                    self.button_handler.handle_button_clicks(&mut self.gameboy);
                 } else {
                     self.current_line_index = self.current_line_index + 1;
                 }
                 return Some(pixel);
             } else {
                 self.gameboy.tick();
+            }
+        }
+    }
+}
+
+pub struct InputButtonMapperTwo<'a> {
+    a_button: &'a mut dyn InputPin<Error = Infallible>,
+    b_button: &'a mut dyn InputPin<Error = Infallible>,
+    start_button: &'a mut dyn InputPin<Error = Infallible>,
+    select_button: &'a mut dyn InputPin<Error = Infallible>,
+    up_button: &'a mut dyn InputPin<Error = Infallible>,
+    down_button: &'a mut dyn InputPin<Error = Infallible>,
+    left_button: &'a mut dyn InputPin<Error = Infallible>,
+    right_button: &'a mut dyn InputPin<Error = Infallible>,
+    a_button_state: bool,
+    b_button_state: bool,
+    start_button_state: bool,
+    select_button_state: bool,
+    up_button_state: bool,
+    down_button_state: bool,
+    left_button_state: bool,
+    right_button_state: bool,
+}
+
+impl<'a> InputButtonMapperTwo<'a> {
+    pub fn new(
+        a_button: &'a mut dyn InputPin<Error = Infallible>,
+        b_button: &'a mut dyn InputPin<Error = Infallible>,
+        start_button: &'a mut dyn InputPin<Error = Infallible>,
+        select_button: &'a mut dyn InputPin<Error = Infallible>,
+        up_button: &'a mut dyn InputPin<Error = Infallible>,
+        down_button: &'a mut dyn InputPin<Error = Infallible>,
+        left_button: &'a mut dyn InputPin<Error = Infallible>,
+        right_button: &'a mut dyn InputPin<Error = Infallible>,
+    ) -> Self {
+        Self {
+            b_button,
+            a_button,
+            select_button,
+            start_button,
+            up_button,
+            down_button,
+            left_button,
+            right_button,
+            a_button_state: false,
+            b_button_state: false,
+            select_button_state: false,
+            start_button_state: false,
+            up_button_state: false,
+            down_button_state: false,
+            left_button_state: false,
+            right_button_state: false,
+        }
+    }
+    #[inline(always)]
+    pub fn handle_button_clicks<SC: Screen>(&mut self, gameboy: &mut GameBoy<'a, SC>) {
+        ///
+        if self.b_button.is_high().unwrap() {
+            if self.b_button_state == false {
+                info!("B pressed");
+                gameboy.key_pressed(gb_core::hardware::input::Button::B);
+                self.b_button_state = true;
+            }
+        } else {
+            if self.b_button_state == true {
+                info!("B released");
+                gameboy.key_released(gb_core::hardware::input::Button::B);
+                self.b_button_state = false;
+            }
+        }
+        ////
+        if self.a_button.is_high().unwrap() {
+            if self.a_button_state == false {
+                info!("A pressed");
+                gameboy.key_pressed(gb_core::hardware::input::Button::A);
+                self.a_button_state = true;
+            }
+        } else {
+            if self.a_button_state == true {
+                info!("A released");
+                gameboy.key_released(gb_core::hardware::input::Button::A);
+                self.a_button_state = false;
+            }
+        }
+        ////
+        if self.select_button.is_high().unwrap() {
+            if self.select_button_state == false {
+                info!("Select pressed");
+                gameboy.key_pressed(gb_core::hardware::input::Button::SELECT);
+                self.select_button_state = true;
+            }
+        } else {
+            if self.select_button_state == true {
+                info!("Select released");
+                gameboy.key_released(gb_core::hardware::input::Button::SELECT);
+                self.select_button_state = false;
+            }
+        }
+        /////
+        if self.start_button.is_high().unwrap() {
+            if self.start_button_state == false {
+                info!("Start pressed");
+                gameboy.key_pressed(gb_core::hardware::input::Button::START);
+                self.start_button_state = true;
+            }
+        } else {
+            if self.start_button_state == true {
+                info!("Start released");
+                gameboy.key_released(gb_core::hardware::input::Button::START);
+                self.start_button_state = false;
+            }
+        }
+        /////
+        if self.up_button.is_high().unwrap() {
+            if self.up_button_state == false {
+                info!("Up pressed");
+                gameboy.key_pressed(gb_core::hardware::input::Button::UP);
+                self.up_button_state = true;
+            }
+        } else {
+            if self.up_button_state == true {
+                info!("Up released");
+                gameboy.key_released(gb_core::hardware::input::Button::UP);
+                self.up_button_state = false;
+            }
+        }
+        /////
+        if self.down_button.is_high().unwrap() {
+            if self.down_button_state == false {
+                info!("Down pressed");
+                gameboy.key_pressed(gb_core::hardware::input::Button::DOWN);
+                self.down_button_state = true;
+            }
+        } else {
+            if self.down_button_state == true {
+                info!("Down released");
+                gameboy.key_released(gb_core::hardware::input::Button::DOWN);
+                self.down_button_state = false;
+            }
+        }
+        /////
+        if self.left_button.is_high().unwrap() {
+            if self.left_button_state == false {
+                info!("Left pressed");
+                gameboy.key_pressed(gb_core::hardware::input::Button::LEFT);
+                self.left_button_state = true;
+            }
+        } else {
+            if self.left_button_state == true {
+                info!("Left released");
+                gameboy.key_released(gb_core::hardware::input::Button::LEFT);
+                self.left_button_state = false;
+            }
+        }
+        /////
+        if self.right_button.is_high().unwrap() {
+            if self.right_button_state == false {
+                info!("Right pressed");
+                gameboy.key_pressed(gb_core::hardware::input::Button::RIGHT);
+                self.right_button_state = true;
+            }
+        } else {
+            if self.right_button_state == true {
+                info!("Right released");
+                gameboy.key_released(gb_core::hardware::input::Button::RIGHT);
+                self.right_button_state = false;
             }
         }
     }
