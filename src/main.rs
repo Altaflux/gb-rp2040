@@ -135,41 +135,6 @@ fn main() -> ! {
     let gb_rom = gb_core::hardware::rom::Rom::from_bytes(roms);
     let cartridge = gb_rom.into_cartridge();
 
-    let screen_data_command_pin = pins.gpio3.into_push_pull_output();
-
-    let spi_sclk: hal::gpio::Pin<_, _, hal::gpio::PullDown> =
-        pins.gpio5.into_function::<hal::gpio::FunctionPio0>();
-    let spi_mosi: hal::gpio::Pin<_, _, hal::gpio::PullDown> =
-        pins.gpio4.into_function::<hal::gpio::FunctionPio0>();
-
-    let display_buffer: &'static mut [u16] =
-        cortex_m::singleton!(: [u16;(SCREEN_WIDTH * 3) * 3]  = [0u16; (SCREEN_WIDTH * 3) * 3 ])
-            .unwrap()
-            .as_mut_slice();
-
-    let streamer = hardware::display::DmaStreamer::new(dma.ch0, dma.ch1, display_buffer);
-
-    let display_interface = hardware::display::SpiPioDmaInterface::new(
-        (3, 0),
-        screen_data_command_pin,
-        &mut pio_0,
-        sm0_1,
-        sm0_0,
-        spi_sclk.id().num,
-        spi_mosi.id().num,
-        streamer,
-    );
-
-    let display_reset = pins.gpio2.into_push_pull_output();
-    let mut display = ili9341::Ili9341::new(
-        display_interface,
-        display_reset,
-        &mut timer,
-        ili9341::Orientation::LandscapeFlipped,
-        ili9341::DisplaySize240x320,
-    )
-    .unwrap();
-
     let boot_rom = gb_core::hardware::boot_rom::Bootrom::new(Some(
         gb_core::hardware::boot_rom::BootromData::from_bytes(&*boot_rom_data),
     ));
@@ -227,6 +192,43 @@ fn main() -> ! {
     let screen = GameboyLineBufferDisplay::new(timer);
     let mut gameboy = GameBoy::create(screen, cartridge, boot_rom, Box::new(i2s_interface));
 
+    //SCREEN
+    let screen_data_command_pin = pins.gpio3.into_push_pull_output();
+
+    let spi_sclk: hal::gpio::Pin<_, _, hal::gpio::PullDown> =
+        pins.gpio5.into_function::<hal::gpio::FunctionPio0>();
+    let spi_mosi: hal::gpio::Pin<_, _, hal::gpio::PullDown> =
+        pins.gpio4.into_function::<hal::gpio::FunctionPio0>();
+
+    let display_buffer: &'static mut [u16] =
+        cortex_m::singleton!(: [u16;(SCREEN_WIDTH * 3) * 3]  = [0u16; (SCREEN_WIDTH * 3) * 3 ])
+            .unwrap()
+            .as_mut_slice();
+
+    let streamer = hardware::display::DmaStreamer::new(dma.ch0, dma.ch1, display_buffer);
+
+    let display_interface = hardware::display::SpiPioDmaInterface::new(
+        (3, 0),
+        screen_data_command_pin,
+        &mut pio_0,
+        sm0_1,
+        sm0_0,
+        spi_sclk.id().num,
+        spi_mosi.id().num,
+        streamer,
+    );
+
+    let display_reset = pins.gpio2.into_push_pull_output();
+    let mut display = ili9341::Ili9341::new(
+        display_interface,
+        display_reset,
+        &mut timer,
+        ili9341::Orientation::LandscapeFlipped,
+        ili9341::DisplaySize240x320,
+    )
+    .unwrap();
+
+    /////
     let scaler: ScreenScaler<144, 160, { SCREEN_WIDTH }, { SCREEN_HEIGHT }> = ScreenScaler::new();
 
     let mut loop_counter: usize = 0;
