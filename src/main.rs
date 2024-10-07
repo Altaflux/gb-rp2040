@@ -10,7 +10,7 @@ use defmt_rtt as _;
 use embedded_sdmmc::{SdCard, VolumeManager};
 use gameboy::display::GameboyLineBufferDisplay;
 
-use gameboy::{GameEmulationHandler, InputButtonMapperTwo};
+use gameboy::{GameEmulationHandler, InputButtonMapper};
 use hal::fugit::RateExtU32;
 
 use hardware::display::ScreenScaler;
@@ -46,7 +46,6 @@ fn main() -> ! {
     {
         use core::mem::MaybeUninit;
         const HEAP_SIZE: usize = 160000;
-        //const HEAP_SIZE: usize = 220000;
         static mut HEAP: [MaybeUninit<u8>; HEAP_SIZE] = [MaybeUninit::uninit(); HEAP_SIZE];
         unsafe { ALLOCATOR.init(HEAP.as_ptr() as usize, HEAP_SIZE) }
     }
@@ -59,7 +58,7 @@ fn main() -> ! {
     //  hal::clocks::RtcClock::
     pac.VREG_AND_CHIP_RESET
         .vreg()
-        .write(|w| unsafe { w.vsel().bits(0b1110) }); // 1.25v
+        .write(|w| unsafe { w.vsel().bits(0b1111) }); // 1.25v
                                                       // External high-speed crystal on the pico board is 12Mhz
     let external_xtal_freq_hz = 12_000_000u32;
     let clocks = clocks::configure_overclock(
@@ -143,7 +142,7 @@ fn main() -> ! {
     //////////////////////AUDIO SETUP
     ///
     let sample_rate: u32 = 16000;
-    let clock_divider: u32 = 369_000_000 * 4 / sample_rate;
+    let clock_divider: u32 = 420_000_000 * 4 / sample_rate;
 
     let int_divider = (clock_divider >> 8) as u16;
     let frak_divider = (clock_divider & 0xFF) as u8;
@@ -179,7 +178,7 @@ fn main() -> ! {
     let mut up_button = pins.gpio21.into_pull_down_input().into_dyn_pin();
     let mut select_button = pins.gpio22.into_pull_down_input().into_dyn_pin();
     let mut start_button = pins.gpio26.into_pull_down_input().into_dyn_pin();
-    let mut button_handler = InputButtonMapperTwo::new(
+    let mut button_handler = InputButtonMapper::new(
         &mut a_button,
         &mut b_button,
         &mut start_button,
@@ -239,6 +238,8 @@ fn main() -> ! {
             .draw_raw_iter(
                 0,
                 0,
+                // (160 - 1) as u16,
+                // (144 - 1) as u16,
                 (SCREEN_HEIGHT - 1) as u16,
                 (SCREEN_WIDTH - 1) as u16,
                 scaler.scale_iterator(GameEmulationHandler::new(&mut gameboy, &mut button_handler)),

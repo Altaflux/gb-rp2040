@@ -65,6 +65,20 @@ pub const PLL_SYS_369MHZ: hal::pll::PLLConfig = hal::pll::PLLConfig {
     post_div2: 1,
 };
 
+pub const PLL_SYS_400MHZ: hal::pll::PLLConfig = hal::pll::PLLConfig {
+    vco_freq: fugit::HertzU32::Hz(1200000000),
+    refdiv: 1,
+    post_div1: 3,
+    post_div2: 1,
+};
+
+pub const PLL_SYS_420MHZ: hal::pll::PLLConfig = hal::pll::PLLConfig {
+    vco_freq: fugit::HertzU32::Hz(1260000000),
+    refdiv: 1,
+    post_div1: 3,
+    post_div2: 1,
+};
+
 pub fn configure_overclock(
     xosc_crystal_freq: u32,
     xosc_dev: pac::XOSC,
@@ -83,7 +97,7 @@ pub fn configure_overclock(
     let pll_sys = hal::pll::setup_pll_blocking(
         pll_sys_dev,
         xosc.operating_frequency(),
-        PLL_SYS_369MHZ,
+        PLL_SYS_420MHZ,
         &mut clocks,
         resets,
     )

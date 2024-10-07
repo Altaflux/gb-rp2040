@@ -11,12 +11,12 @@ use defmt_rtt as _;
 pub struct GameEmulationHandler<'a, 'b, 'c> {
     gameboy: &'a mut GameBoy<'b, GameboyLineBufferDisplay>,
     current_line_index: usize,
-    button_handler: &'a mut InputButtonMapperTwo<'c>,
+    button_handler: &'a mut InputButtonMapper<'c>,
 }
 impl<'a, 'b, 'c> GameEmulationHandler<'a, 'b, 'c> {
     pub fn new(
         gameboy: &'a mut GameBoy<'b, GameboyLineBufferDisplay>,
-        button_handler: &'a mut InputButtonMapperTwo<'c>,
+        button_handler: &'a mut InputButtonMapper<'c>,
     ) -> Self {
         Self {
             gameboy: gameboy,
@@ -56,7 +56,7 @@ where
     }
 }
 
-pub struct InputButtonMapperTwo<'a> {
+pub struct InputButtonMapper<'a> {
     a_button: &'a mut dyn InputPin<Error = Infallible>,
     b_button: &'a mut dyn InputPin<Error = Infallible>,
     start_button: &'a mut dyn InputPin<Error = Infallible>,
@@ -75,7 +75,7 @@ pub struct InputButtonMapperTwo<'a> {
     right_button_state: bool,
 }
 
-impl<'a> InputButtonMapperTwo<'a> {
+impl<'a> InputButtonMapper<'a> {
     pub fn new(
         a_button: &'a mut dyn InputPin<Error = Infallible>,
         b_button: &'a mut dyn InputPin<Error = Infallible>,
@@ -110,13 +110,13 @@ impl<'a> InputButtonMapperTwo<'a> {
         ////
         if self.b_button.is_high().unwrap() {
             if self.b_button_state == false {
-                info!("B pressed");
+                //  info!("B pressed");
                 gameboy.key_pressed(gb_core::hardware::input::Button::B);
                 self.b_button_state = true;
             }
         } else {
             if self.b_button_state == true {
-                info!("B released");
+                //   info!("B released");
                 gameboy.key_released(gb_core::hardware::input::Button::B);
                 self.b_button_state = false;
             }
@@ -124,13 +124,13 @@ impl<'a> InputButtonMapperTwo<'a> {
         ////
         if self.a_button.is_high().unwrap() {
             if self.a_button_state == false {
-                info!("A pressed");
+                //  info!("A pressed");
                 gameboy.key_pressed(gb_core::hardware::input::Button::A);
                 self.a_button_state = true;
             }
         } else {
             if self.a_button_state == true {
-                info!("A released");
+                // info!("A released");
                 gameboy.key_released(gb_core::hardware::input::Button::A);
                 self.a_button_state = false;
             }
@@ -138,13 +138,13 @@ impl<'a> InputButtonMapperTwo<'a> {
         ////
         if self.select_button.is_high().unwrap() {
             if self.select_button_state == false {
-                info!("Select pressed");
+                // info!("Select pressed");
                 gameboy.key_pressed(gb_core::hardware::input::Button::SELECT);
                 self.select_button_state = true;
             }
         } else {
             if self.select_button_state == true {
-                info!("Select released");
+                //  info!("Select released");
                 gameboy.key_released(gb_core::hardware::input::Button::SELECT);
                 self.select_button_state = false;
             }
@@ -152,13 +152,13 @@ impl<'a> InputButtonMapperTwo<'a> {
         /////
         if self.start_button.is_high().unwrap() {
             if self.start_button_state == false {
-                info!("Start pressed");
+                //   info!("Start pressed");
                 gameboy.key_pressed(gb_core::hardware::input::Button::START);
                 self.start_button_state = true;
             }
         } else {
             if self.start_button_state == true {
-                info!("Start released");
+                //  info!("Start released");
                 gameboy.key_released(gb_core::hardware::input::Button::START);
                 self.start_button_state = false;
             }
@@ -166,13 +166,13 @@ impl<'a> InputButtonMapperTwo<'a> {
         /////
         if self.up_button.is_high().unwrap() {
             if self.up_button_state == false {
-                info!("Up pressed");
+                //  info!("Up pressed");
                 gameboy.key_pressed(gb_core::hardware::input::Button::UP);
                 self.up_button_state = true;
             }
         } else {
             if self.up_button_state == true {
-                info!("Up released");
+                //  info!("Up released");
                 gameboy.key_released(gb_core::hardware::input::Button::UP);
                 self.up_button_state = false;
             }
@@ -180,13 +180,13 @@ impl<'a> InputButtonMapperTwo<'a> {
         /////
         if self.down_button.is_high().unwrap() {
             if self.down_button_state == false {
-                info!("Down pressed");
+                // info!("Down pressed");
                 gameboy.key_pressed(gb_core::hardware::input::Button::DOWN);
                 self.down_button_state = true;
             }
         } else {
             if self.down_button_state == true {
-                info!("Down released");
+                // info!("Down released");
                 gameboy.key_released(gb_core::hardware::input::Button::DOWN);
                 self.down_button_state = false;
             }
@@ -194,13 +194,13 @@ impl<'a> InputButtonMapperTwo<'a> {
         /////
         if self.left_button.is_high().unwrap() {
             if self.left_button_state == false {
-                info!("Left pressed");
+                //  info!("Left pressed");
                 gameboy.key_pressed(gb_core::hardware::input::Button::LEFT);
                 self.left_button_state = true;
             }
         } else {
             if self.left_button_state == true {
-                info!("Left released");
+                //   info!("Left released");
                 gameboy.key_released(gb_core::hardware::input::Button::LEFT);
                 self.left_button_state = false;
             }
@@ -208,13 +208,13 @@ impl<'a> InputButtonMapperTwo<'a> {
         /////
         if self.right_button.is_high().unwrap() {
             if self.right_button_state == false {
-                info!("Right pressed");
+                //   info!("Right pressed");
                 gameboy.key_pressed(gb_core::hardware::input::Button::RIGHT);
                 self.right_button_state = true;
             }
         } else {
             if self.right_button_state == true {
-                info!("Right released");
+                //   info!("Right released");
                 gameboy.key_released(gb_core::hardware::input::Button::RIGHT);
                 self.right_button_state = false;
             }
