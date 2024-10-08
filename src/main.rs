@@ -116,6 +116,7 @@ fn main() -> ! {
     let mut volume0 = volume_mgr
         .open_volume(embedded_sdmmc::VolumeIdx(0))
         .unwrap();
+
     let mut root_dir = volume0.open_root_dir().unwrap();
 
     //Read boot rom
@@ -126,11 +127,7 @@ fn main() -> ! {
     boot_rom_file.read(&mut *boot_rom_data).unwrap();
     boot_rom_file.close().unwrap();
 
-    let rom_file = root_dir
-        .open_file_in_dir("tetris.gb", embedded_sdmmc::Mode::ReadOnly)
-        .unwrap();
-
-    let roms = gameboy::rom::SdRomManager::new(rom_file);
+    let roms = gameboy::rom::SdRomManager::new("tetris.gb", root_dir);
     let gb_rom = gb_core::hardware::rom::Rom::from_bytes(roms);
     let cartridge = gb_rom.into_cartridge();
 
@@ -140,7 +137,7 @@ fn main() -> ! {
     core::mem::drop(boot_rom_data);
 
     //////////////////////AUDIO SETUP
-    ///
+
     let sample_rate: u32 = 16000;
     let clock_divider: u32 = 420_000_000 * 4 / sample_rate;
 

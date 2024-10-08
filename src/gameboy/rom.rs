@@ -1,6 +1,9 @@
 use core::cell::RefCell;
 
-use alloc::boxed::Box;
+use alloc::{
+    boxed::Box,
+    string::{String, ToString},
+};
 use const_lru::ConstLru;
 pub struct SdRomManager<
     'a,
@@ -10,7 +13,8 @@ pub struct SdRomManager<
     const MAX_FILES: usize,
     const MAX_VOLUMES: usize,
 > {
-    file: RefCell<embedded_sdmmc::File<'a, D, T, MAX_DIRS, MAX_FILES, MAX_VOLUMES>>,
+    rom_name: String,
+    root_dir: RefCell<embedded_sdmmc::Directory<'a, D, T, MAX_DIRS, MAX_FILES, MAX_VOLUMES>>,
     bank_0: Box<[u8; 0x4000]>,
     bank_lru: RefCell<ConstLru<usize, Box<[u8; 0x4000]>, 4, u8>>,
 }
@@ -23,24 +27,39 @@ impl<
         const MAX_VOLUMES: usize,
     > SdRomManager<'a, D, T, MAX_DIRS, MAX_FILES, MAX_VOLUMES>
 {
-    pub fn new(mut file: embedded_sdmmc::File<'a, D, T, MAX_DIRS, MAX_FILES, MAX_VOLUMES>) -> Self {
+    pub fn new(
+        rom_name: &str,
+        mut root_dir: embedded_sdmmc::Directory<'a, D, T, MAX_DIRS, MAX_FILES, MAX_VOLUMES>,
+    ) -> Self {
+        let mut rom_file = root_dir
+            .open_file_in_dir(rom_name, embedded_sdmmc::Mode::ReadOnly)
+            .unwrap();
         let mut bank_0 = Box::new([0u8; 0x4000]);
-        file.seek_from_start(0u32).unwrap();
-        file.read(&mut *bank_0).unwrap();
+        rom_file.seek_from_start(0u32).unwrap();
+        rom_file.read(&mut *bank_0).unwrap();
+        rom_file.close().unwrap();
 
         let result = Self {
+            rom_name: rom_name.to_string(),
             bank_0: bank_0,
-            file: RefCell::new(file),
+            root_dir: RefCell::new(root_dir),
             bank_lru: RefCell::new(ConstLru::new()),
         };
 
         result
     }
     fn read_bank(&self, bank_offset: usize) -> Box<[u8; 0x4000]> {
+        let mut binding = self.root_dir.borrow_mut();
+        let mut file = binding
+            .open_file_in_dir(self.rom_name.as_str(), embedded_sdmmc::Mode::ReadOnly)
+            .unwrap();
+
         let mut buffer: Box<[u8; 0x4000]> = Box::new([0u8; 0x4000]);
-        let mut file = self.file.borrow_mut();
+
         file.seek_from_start(bank_offset as u32).unwrap();
         file.read(&mut *buffer).unwrap();
+
+        file.close().unwrap();
         buffer
     }
 }
