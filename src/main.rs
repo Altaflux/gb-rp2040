@@ -127,7 +127,7 @@ fn main() -> ! {
     boot_rom_file.read(&mut *boot_rom_data).unwrap();
     boot_rom_file.close().unwrap();
 
-    let roms = gameboy::rom::SdRomManager::new("tetris.gb", root_dir);
+    let roms = gameboy::rom::SdRomManager::new("tetris.gb", root_dir, timer);
     let gb_rom = gb_core::hardware::rom::Rom::from_bytes(roms);
     let cartridge = gb_rom.into_cartridge();
 

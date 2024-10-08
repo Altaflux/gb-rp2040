@@ -1,3 +1,4 @@
+use crate::hal::timer::Instant;
 use core::cell::RefCell;
 
 use alloc::{
@@ -17,6 +18,8 @@ pub struct SdRomManager<
     root_dir: RefCell<embedded_sdmmc::Directory<'a, D, T, MAX_DIRS, MAX_FILES, MAX_VOLUMES>>,
     bank_0: Box<[u8; 0x4000]>,
     bank_lru: RefCell<ConstLru<usize, Box<[u8; 0x4000]>, 4, u8>>,
+    start_time: Instant,
+    timer: crate::hal::Timer,
 }
 impl<
         'a,
@@ -30,6 +33,7 @@ impl<
     pub fn new(
         rom_name: &str,
         mut root_dir: embedded_sdmmc::Directory<'a, D, T, MAX_DIRS, MAX_FILES, MAX_VOLUMES>,
+        timer: crate::hal::Timer,
     ) -> Self {
         let mut rom_file = root_dir
             .open_file_in_dir(rom_name, embedded_sdmmc::Mode::ReadOnly)
@@ -44,6 +48,8 @@ impl<
             bank_0: bank_0,
             root_dir: RefCell::new(root_dir),
             bank_lru: RefCell::new(ConstLru::new()),
+            start_time: timer.get_counter(),
+            timer,
         };
 
         result
@@ -89,6 +95,12 @@ impl<
             }
         };
         value
+    }
+
+    fn clock(&mut self) -> u64 {
+        let current_time = self.timer.get_counter();
+        let diff = current_time - self.start_time;
+        diff.to_micros()
     }
 }
 impl<
