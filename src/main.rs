@@ -127,7 +127,7 @@ fn main() -> ! {
     boot_rom_file.read(&mut *boot_rom_data).unwrap();
     boot_rom_file.close().unwrap();
 
-    let roms = gameboy::rom::SdRomManager::new("tetris.gb", root_dir, timer);
+    let roms = gameboy::rom::SdRomManager::new("pkred.gb", root_dir, timer);
     let gb_rom = gb_core::hardware::rom::Rom::from_bytes(roms);
     let cartridge = gb_rom.into_cartridge();
 
@@ -179,7 +179,7 @@ fn main() -> ! {
         pins.gpio4.into_function::<hal::gpio::FunctionPio0>();
 
     let display_buffer: &'static mut [u16] =
-        cortex_m::singleton!(: [u16;(SCREEN_WIDTH * 3) * 3]  = [0u16; (SCREEN_WIDTH * 3) * 3 ])
+        cortex_m::singleton!(: [u16;(SCREEN_WIDTH) * 3]  = [0u16; (SCREEN_WIDTH ) * 3 ])
             .unwrap()
             .as_mut_slice();
 

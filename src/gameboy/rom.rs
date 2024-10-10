@@ -17,7 +17,7 @@ pub struct SdRomManager<
     rom_name: String,
     root_dir: RefCell<embedded_sdmmc::Directory<'a, D, T, MAX_DIRS, MAX_FILES, MAX_VOLUMES>>,
     bank_0: Box<[u8; 0x4000]>,
-    bank_lru: RefCell<ConstLru<usize, Box<[u8; 0x4000]>, 4, u8>>,
+    bank_lru: RefCell<ConstLru<usize, Box<[u8; 0x4000]>, 3, u8>>,
     start_time: Instant,
     timer: crate::hal::Timer,
 }
@@ -97,7 +97,7 @@ impl<
         value
     }
 
-    fn clock(&mut self) -> u64 {
+    fn clock(&self) -> u64 {
         let current_time = self.timer.get_counter();
         let diff = current_time - self.start_time;
         diff.to_micros()
