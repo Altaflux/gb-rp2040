@@ -109,14 +109,16 @@ fn main() -> ! {
         400.kHz(), // card initialization happens at low baud rate
         embedded_hal::spi::MODE_0,
     );
+
     let exclusive_spi = embedded_hal_bus::spi::ExclusiveDevice::new(spi, spi_cs, timer).unwrap();
     let sdcard = SdCard::new(exclusive_spi, timer);
+    info!("Opening rom3");
     let mut volume_mgr = VolumeManager::new(sdcard, hardware::sdcard::DummyTimesource::default());
-
+    info!("--Opening rom4");
     let mut volume0 = volume_mgr
         .open_volume(embedded_sdmmc::VolumeIdx(0))
         .unwrap();
-
+    info!("--Opening rom5");
     let mut root_dir = volume0.open_root_dir().unwrap();
 
     //Read boot rom
@@ -127,7 +129,7 @@ fn main() -> ! {
     boot_rom_file.read(&mut *boot_rom_data).unwrap();
     boot_rom_file.close().unwrap();
 
-    let roms = gameboy::rom::SdRomManager::new("pkred.gb", root_dir, timer);
+    let roms = gameboy::rom::SdRomManager::new("sml.gb", root_dir, timer);
     let gb_rom = gb_core::hardware::rom::Rom::from_bytes(roms);
     let cartridge = gb_rom.into_cartridge();
 
@@ -139,7 +141,7 @@ fn main() -> ! {
     //////////////////////AUDIO SETUP
 
     let sample_rate: u32 = 16000;
-    let clock_divider: u32 = 420_000_000 * 4 / sample_rate;
+    let clock_divider: u32 = 400_000_000 * 4 / sample_rate;
 
     let int_divider = (clock_divider >> 8) as u16;
     let frak_divider = (clock_divider & 0xFF) as u8;
@@ -235,8 +237,6 @@ fn main() -> ! {
             .draw_raw_iter(
                 0,
                 0,
-                // (160 - 1) as u16,
-                // (144 - 1) as u16,
                 (SCREEN_HEIGHT - 1) as u16,
                 (SCREEN_WIDTH - 1) as u16,
                 scaler.scale_iterator(GameEmulationHandler::new(&mut gameboy, &mut button_handler)),
