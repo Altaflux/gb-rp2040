@@ -106,7 +106,7 @@ fn main() -> ! {
     let spi = spi.init(
         &mut pac.RESETS,
         clocks.peripheral_clock.freq(),
-        400.kHz(), // card initialization happens at low baud rate
+        300.kHz(), // card initialization happens at low baud rate
         embedded_hal::spi::MODE_0,
     );
 
@@ -211,14 +211,14 @@ fn main() -> ! {
     /////
     let scaler: ScreenScaler<144, 160, { SCREEN_WIDTH }, { SCREEN_HEIGHT }> = ScreenScaler::new();
     ////////////////////// JOYPAD
-    let mut b_button = pins.gpio16.into_pull_down_input().into_dyn_pin();
-    let mut a_button = pins.gpio17.into_pull_down_input().into_dyn_pin();
-    let mut right_button = pins.gpio18.into_pull_down_input().into_dyn_pin();
-    let mut down_button = pins.gpio19.into_pull_down_input().into_dyn_pin();
-    let mut left_button = pins.gpio20.into_pull_down_input().into_dyn_pin();
-    let mut up_button = pins.gpio21.into_pull_down_input().into_dyn_pin();
-    let mut select_button = pins.gpio22.into_pull_down_input().into_dyn_pin();
-    let mut start_button = pins.gpio26.into_pull_down_input().into_dyn_pin();
+    let mut b_button = pins.gpio16.into_pull_up_input().into_dyn_pin();
+    let mut a_button = pins.gpio17.into_pull_up_input().into_dyn_pin();
+    let mut right_button = pins.gpio18.into_pull_up_input().into_dyn_pin();
+    let mut down_button = pins.gpio19.into_pull_up_input().into_dyn_pin();
+    let mut left_button = pins.gpio20.into_pull_up_input().into_dyn_pin();
+    let mut up_button = pins.gpio21.into_pull_up_input().into_dyn_pin();
+    let mut select_button = pins.gpio22.into_pull_up_input().into_dyn_pin();
+    let mut start_button = pins.gpio26.into_pull_up_input().into_dyn_pin();
     let mut button_handler = InputButtonMapper::new(
         &mut a_button,
         &mut b_button,
