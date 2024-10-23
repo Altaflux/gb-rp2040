@@ -58,8 +58,8 @@ fn main() -> ! {
     //  hal::clocks::RtcClock::
     pac.VREG_AND_CHIP_RESET
         .vreg()
-        .write(|w| unsafe { w.vsel().bits(0b1111) }); // 1.25v
-                                                      // External high-speed crystal on the pico board is 12Mhz
+        .write(|w| w.vsel().voltage1_30()); // 1.25v
+                                            // External high-speed crystal on the pico board is 12Mhz
     let external_xtal_freq_hz = 12_000_000u32;
     let clocks = clocks::configure_overclock(
         external_xtal_freq_hz,
@@ -72,6 +72,10 @@ fn main() -> ! {
     )
     .ok()
     .unwrap();
+
+    let power_level = pac.VREG_AND_CHIP_RESET.vreg().read().vsel().bits();
+
+    info!("VSEL SET: {}", power_level);
 
     let mut timer: rp2040_hal::Timer = rp2040_hal::Timer::new(pac.TIMER, &mut pac.RESETS, &clocks);
 
