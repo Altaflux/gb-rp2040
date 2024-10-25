@@ -145,7 +145,7 @@ fn main() -> ! {
     //////////////////////AUDIO SETUP
 
     let sample_rate: u32 = 16000;
-    let clock_divider: u32 = 400_000_000 * 4 / sample_rate;
+    let clock_divider: u32 = clocks.system_clock.freq().to_Hz() * 4 / sample_rate;
 
     let int_divider = (clock_divider >> 8) as u16;
     let frak_divider = (clock_divider & 0xFF) as u8;
